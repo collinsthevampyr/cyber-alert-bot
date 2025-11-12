@@ -157,12 +157,14 @@ export const MonitoringConfig = () => {
   };
 
   return (
-    <Card>
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 hover:border-primary/20">
       <CardHeader>
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="w-5 h-5 text-primary" />
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Settings className="w-5 h-5 text-primary" />
+              </div>
               Monitoring Configuration
             </CardTitle>
             <CardDescription>Configure tools and notification settings</CardDescription>
@@ -171,35 +173,45 @@ export const MonitoringConfig = () => {
             onClick={runManualScan}
             disabled={scanLoading || tools.length === 0}
             size="sm"
-            className="gap-2"
+            className="gap-2 hover-scale bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md"
           >
-            <PlayCircle className="w-4 h-4" />
+            <PlayCircle className={`w-4 h-4 ${scanLoading ? 'animate-spin' : ''}`} />
             {scanLoading ? "Scanning..." : "Check Now"}
           </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <Label>Monitored Tools & Technologies</Label>
+        <div className="space-y-3">
+          <Label className="text-base font-semibold">Monitored Tools & Technologies</Label>
           <div className="flex gap-2">
             <Input
               placeholder="e.g., WordPress, AWS, Splunk"
               value={newTool}
               onChange={(e) => setNewTool(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && addTool()}
+              className="transition-all focus:ring-2 focus:ring-primary/20"
             />
-            <Button onClick={addTool} size="icon">
+            <Button 
+              onClick={addTool} 
+              size="icon"
+              className="hover-scale bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+            >
               <Plus className="w-4 h-4" />
             </Button>
           </div>
-          <div className="flex flex-wrap gap-2 mt-3">
-            {tools.map((tool) => (
-              <Badge key={tool} variant="secondary" className="gap-1 pr-1">
+          <div className="flex flex-wrap gap-2 mt-3 min-h-[40px]">
+            {tools.map((tool, index) => (
+              <Badge 
+                key={tool} 
+                variant="secondary" 
+                className="gap-1 pr-1 hover-scale animate-fade-in bg-gradient-to-r from-secondary to-secondary/80 border border-primary/10"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
                 {tool}
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-4 w-4"
+                  className="h-4 w-4 hover:text-destructive transition-colors"
                   onClick={() => removeTool(tool)}
                 >
                   <X className="w-3 h-3" />
@@ -210,11 +222,11 @@ export const MonitoringConfig = () => {
         </div>
 
         <div className="space-y-4">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label htmlFor="webhook" className="text-base font-semibold">
               Slack Notifications
             </Label>
-            <Alert className="bg-primary/5 border-primary/20">
+            <Alert className="bg-gradient-to-r from-primary/10 to-accent/10 border-primary/20 shadow-sm">
               <AlertCircle className="h-4 w-4 text-primary" />
               <AlertDescription className="text-sm space-y-2">
                 <p className="font-medium">How to connect Slack in 3 easy steps:</p>
@@ -229,7 +241,7 @@ export const MonitoringConfig = () => {
 
           <Button
             variant="outline"
-            className="w-full gap-2"
+            className="w-full gap-2 hover-scale border-primary/20 hover:bg-primary/10 hover:text-primary transition-all"
             onClick={() => window.open("https://api.slack.com/messaging/webhooks", "_blank")}
           >
             <ExternalLink className="w-4 h-4" />
@@ -244,37 +256,42 @@ export const MonitoringConfig = () => {
               placeholder="https://hooks.slack.com/services/..."
               value={slackWebhook}
               onChange={(e) => setSlackWebhook(e.target.value)}
+              className="transition-all focus:ring-2 focus:ring-primary/20"
             />
           </div>
 
           {slackWebhook && (
             <Button
               variant="secondary"
-              className="w-full gap-2"
+              className="w-full gap-2 hover-scale animate-fade-in bg-gradient-to-r from-secondary to-secondary/80"
               onClick={testSlackWebhook}
               disabled={testingWebhook}
             >
-              <CheckCircle className="w-4 h-4" />
+              <CheckCircle className={`w-4 h-4 ${testingWebhook ? 'animate-pulse' : ''}`} />
               {testingWebhook ? "Sending Test..." : "Send Test Message"}
             </Button>
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="frequency">Scan Frequency</Label>
+        <div className="space-y-3">
+          <Label htmlFor="frequency" className="text-base font-semibold">Scan Frequency</Label>
           <Select value={frequency} onValueChange={setFrequency}>
-            <SelectTrigger id="frequency">
+            <SelectTrigger id="frequency" className="transition-all focus:ring-2 focus:ring-primary/20">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="15min">Every 15 minutes</SelectItem>
-              <SelectItem value="hourly">Every hour</SelectItem>
-              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="15min">⚡ Every 15 minutes</SelectItem>
+              <SelectItem value="hourly">🕐 Every hour</SelectItem>
+              <SelectItem value="daily">📅 Daily</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        <Button onClick={saveConfig} disabled={loading} className="w-full">
+        <Button 
+          onClick={saveConfig} 
+          disabled={loading} 
+          className="w-full hover-scale bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-md text-base font-semibold py-6"
+        >
           {loading ? "Saving..." : "Save Configuration"}
         </Button>
       </CardContent>

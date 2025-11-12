@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Clock, AlertTriangle, CheckCircle } from "lucide-react";
+import { Activity, Clock, AlertTriangle, CheckCircle, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { Progress } from "@/components/ui/progress";
 
 export const ScanStatus = () => {
   const [lastScan, setLastScan] = useState<any>(null);
@@ -72,43 +73,48 @@ export const ScanStatus = () => {
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <Card>
+      <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 hover:border-primary/20 hover:-translate-y-1">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Scan Status</CardTitle>
           {getStatusIcon()}
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
+          <div className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             {lastScan ? lastScan.status.charAt(0).toUpperCase() + lastScan.status.slice(1) : "No scans yet"}
           </div>
           <p className="text-xs text-muted-foreground">
             {lastScan?.error_message || "System operational"}
           </p>
+          {lastScan?.status === "running" && (
+            <Progress value={66} className="h-1 mt-3" />
+          )}
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 hover:border-accent/20 hover:-translate-y-1">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Last Scan</CardTitle>
           <Clock className="w-5 h-5 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
+          <div className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             {lastScan ? formatDistanceToNow(new Date(lastScan.scan_started_at), { addSuffix: true }) : "Never"}
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
             {lastScan ? `${lastScan.alerts_found} alerts found` : "Configure monitoring to start"}
           </p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 hover:border-destructive/20 hover:-translate-y-1">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Alerts</CardTitle>
-          <AlertTriangle className="w-5 h-5 text-warning" />
+          <AlertTriangle className="w-5 h-5 text-warning animate-pulse" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{totalAlerts}</div>
+          <div className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+            {totalAlerts}
+          </div>
           <p className="text-xs text-muted-foreground">All time</p>
         </CardContent>
       </Card>
