@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import Configuration from "./pages/Configuration";
 import Documentation from "./pages/Documentation";
 import Settings from "./pages/Settings";
+import Support from "./pages/Support";
+import AdminDashboard from "./pages/AdminDashboard";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
@@ -34,6 +36,8 @@ const App = () => (
             <Route path="/configuration" element={<Configuration />} />
             <Route path="/docs" element={<Documentation />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/support" element={<Support />} />
+            <Route path="/admin" element={<AdminDashboard />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />
