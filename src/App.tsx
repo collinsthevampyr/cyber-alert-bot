@@ -34,6 +34,7 @@ const App = () => (
           {/* Authenticated routes with sidebar */}
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/soc" element={<SOCWorkspace />} />
             <Route path="/configuration" element={<Configuration />} />
             <Route path="/docs" element={<Documentation />} />
             <Route path="/settings" element={<Settings />} />

@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 
 const mainNav = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "SOC Workspace", url: "/soc", icon: Crosshair },
   { title: "Configuration", url: "/configuration", icon: Sliders },
   { title: "Documentation", url: "/docs", icon: BookOpen },
   { title: "Support", url: "/support", icon: LifeBuoy },
