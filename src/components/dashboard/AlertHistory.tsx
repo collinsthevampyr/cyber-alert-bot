@@ -5,379 +5,200 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, ExternalLink, Shield, Brain, ChevronDown, ChevronUp, Loader2, Lightbulb, ShieldCheck, Send, Search, Filter, X } from "lucide-react";
+import { AlertCircle, ExternalLink, Shield, Brain, Loader2, Lightbulb, ShieldCheck, Send, Search, Filter, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 
 export const AlertHistory = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
-  const [filteredAlerts, setFilteredAlerts] = useState<any[]>([]);
+  const [filtered, setFiltered] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
-  const [severityFilter, setSeverityFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [sevFilter, setSevFilter] = useState("all");
   const [toolFilter, setToolFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     loadAlerts();
-
-    const channel = supabase
-      .channel("alerts_updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => loadAlerts())
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
+    const ch = supabase.channel("alerts_updates").on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => loadAlerts()).subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, []);
 
   useEffect(() => {
-    let results = alerts;
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      results = results.filter(a =>
-        a.summary?.toLowerCase().includes(q) ||
-        a.tool_name?.toLowerCase().includes(q) ||
-        a.analysis?.toLowerCase().includes(q)
-      );
-    }
-
-    if (severityFilter !== "all") {
-      results = results.filter(a => a.severity?.toLowerCase() === severityFilter);
-    }
-
-    if (toolFilter !== "all") {
-      results = results.filter(a => a.tool_name === toolFilter);
-    }
-
-    setFilteredAlerts(results);
-  }, [alerts, searchQuery, severityFilter, toolFilter]);
+    let r = alerts;
+    if (search) { const q = search.toLowerCase(); r = r.filter(a => a.summary?.toLowerCase().includes(q) || a.tool_name?.toLowerCase().includes(q)); }
+    if (sevFilter !== "all") r = r.filter(a => a.severity?.toLowerCase() === sevFilter);
+    if (toolFilter !== "all") r = r.filter(a => a.tool_name === toolFilter);
+    setFiltered(r);
+  }, [alerts, search, sevFilter, toolFilter]);
 
   const loadAlerts = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    const { data } = await supabase
-      .from("alerts")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("detected_at", { ascending: false })
-      .limit(50);
-
+    const { data } = await supabase.from("alerts").select("*").eq("user_id", user.id).order("detected_at", { ascending: false }).limit(50);
     setAlerts(data || []);
     setLoading(false);
   };
 
-  const uniqueTools = [...new Set(alerts.map(a => a.tool_name))].filter(Boolean);
+  const tools = [...new Set(alerts.map(a => a.tool_name))].filter(Boolean);
+  const hasFilters = search || sevFilter !== "all" || toolFilter !== "all";
 
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSeverityFilter("all");
-    setToolFilter("all");
-  };
-
-  const hasActiveFilters = searchQuery || severityFilter !== "all" || toolFilter !== "all";
-
-  const analyzeAlert = async (alertId: string) => {
-    setAnalyzingIds((prev) => new Set(prev).add(alertId));
+  const analyze = async (id: string) => {
+    setAnalyzingIds(p => new Set(p).add(id));
     try {
-      const { data, error } = await supabase.functions.invoke("analyze-alert", {
-        body: { alertId },
-      });
+      const { data, error } = await supabase.functions.invoke("analyze-alert", { body: { alertId: id } });
       if (error) throw error;
-      setAlerts((prev) =>
-        prev.map((a) =>
-          a.id === alertId ? { ...a, analysis: data.analysis, remediation: data.remediation } : a
-        )
-      );
-      setExpandedIds((prev) => new Set(prev).add(alertId));
-      toast({
-        title: data.cached ? "Analysis Retrieved" : "Analysis Complete",
-        description: data.cached ? "Showing cached analysis." : "AI analysis and remediation generated.",
-      });
-    } catch (error: any) {
-      toast({ title: "Analysis Failed", description: error.message || "Could not analyze this alert.", variant: "destructive" });
-    }
-    setAnalyzingIds((prev) => { const next = new Set(prev); next.delete(alertId); return next; });
+      setAlerts(p => p.map(a => a.id === id ? { ...a, analysis: data.analysis, remediation: data.remediation } : a));
+      setExpandedIds(p => new Set(p).add(id));
+      toast({ title: data.cached ? "Cached analysis" : "Analysis complete" });
+    } catch (e: any) { toast({ title: "Failed", description: e.message, variant: "destructive" }); }
+    setAnalyzingIds(p => { const n = new Set(p); n.delete(id); return n; });
   };
 
-  const sendAlert = async (alertId: string) => {
-    setSendingIds((prev) => new Set(prev).add(alertId));
+  const send = async (id: string) => {
+    setSendingIds(p => new Set(p).add(id));
     try {
-      const { data, error } = await supabase.functions.invoke("send-notification", {
-        body: { alertId },
-      });
+      const { data, error } = await supabase.functions.invoke("send-notification", { body: { alertId: id } });
       if (error) throw error;
-      toast({ title: "Notifications Sent", description: `Sent to ${data.sent}/${data.total} channels.` });
-    } catch (error: any) {
-      toast({ title: "Send Failed", description: error.message || "Could not send notifications.", variant: "destructive" });
-    }
-    setSendingIds((prev) => { const next = new Set(prev); next.delete(alertId); return next; });
+      toast({ title: "Sent", description: `${data.sent}/${data.total} channels.` });
+    } catch (e: any) { toast({ title: "Failed", description: e.message, variant: "destructive" }); }
+    setSendingIds(p => { const n = new Set(p); n.delete(id); return n; });
   };
 
-  const toggleExpand = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  const toggle = (id: string) => setExpandedIds(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity.toLowerCase()) {
-      case "critical": return "bg-[hsl(var(--critical))]/10 text-[hsl(var(--critical))] border-[hsl(var(--critical))]/20";
-      case "high": return "bg-destructive/10 text-destructive border-destructive/20";
-      case "medium": return "bg-[hsl(var(--warning))]/10 text-[hsl(var(--warning))] border-[hsl(var(--warning))]/20";
-      case "low": return "bg-[hsl(var(--success))]/10 text-[hsl(var(--success))] border-[hsl(var(--success))]/20";
-      default: return "bg-muted text-muted-foreground border-muted";
+  const sevColor = (s: string) => {
+    switch (s.toLowerCase()) {
+      case "critical": return "bg-destructive/10 text-destructive border-destructive/30";
+      case "high": return "bg-warning/10 text-warning border-warning/30";
+      case "medium": return "bg-info/10 text-info border-info/30";
+      case "low": return "bg-success/10 text-success border-success/30";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
-  const getSeverityGradient = (severity: string) => {
-    switch (severity.toLowerCase()) {
-      case "critical": return "from-destructive/20 to-destructive/5 border-destructive/30 hover:border-destructive/50";
-      case "high": return "from-[hsl(25,95%,53%)]/20 to-[hsl(25,95%,53%)]/5 border-[hsl(25,95%,53%)]/30 hover:border-[hsl(25,95%,53%)]/50";
-      case "medium": return "from-[hsl(var(--warning))]/20 to-[hsl(var(--warning))]/5 border-[hsl(var(--warning))]/30 hover:border-[hsl(var(--warning))]/50";
-      case "low": return "from-[hsl(var(--success))]/20 to-[hsl(var(--success))]/5 border-[hsl(var(--success))]/30 hover:border-[hsl(var(--success))]/50";
-      default: return "from-secondary/20 to-secondary/5 border-secondary/30 hover:border-secondary/50";
+  const sevBorder = (s: string) => {
+    switch (s.toLowerCase()) {
+      case "critical": return "border-l-destructive";
+      case "high": return "border-l-warning";
+      case "medium": return "border-l-info";
+      case "low": return "border-l-success";
+      default: return "border-l-border";
     }
   };
 
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-primary" /> Alert History
-          </CardTitle>
-          <CardDescription>Recent security threats detected</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">Loading...</div>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (loading) return <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">Loading alerts...</CardContent></Card>;
 
   return (
-    <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 hover:border-primary/20">
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <div className="p-2 rounded-lg bg-destructive/10">
-                <AlertCircle className="w-5 h-5 text-destructive animate-pulse" />
-              </div>
-              Alert History
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-muted-foreground" /> Alerts
             </CardTitle>
-            <CardDescription className="mt-1">Recent security threats — click "Analyze" for AI-powered remediation</CardDescription>
+            <CardDescription className="text-xs mt-0.5">Detected threats — analyze and forward to channels</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {alerts.length > 0 && (
-              <Badge variant="secondary" className="text-lg px-3 py-1">
-                {hasActiveFilters ? `${filteredAlerts.length}/${alerts.length}` : alerts.length}
-              </Badge>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {hasFilters ? `${filtered.length} of ${alerts.length}` : alerts.length}
+              </span>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className={showFilters ? "border-primary text-primary" : ""}
-            >
-              <Filter className="w-4 h-4 mr-1" /> Filter
+            <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} className={`text-xs ${showFilters ? "border-primary" : ""}`}>
+              <Filter className="w-3 h-3 mr-1" /> Filter
             </Button>
           </div>
         </div>
 
-        {/* Filters */}
         {showFilters && (
-          <div className="mt-4 p-3 rounded-lg border border-border/50 bg-background/50 space-y-3 animate-fade-in">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search alerts..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                <SelectTrigger className="w-full sm:w-[140px]">
-                  <SelectValue placeholder="Severity" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Severities</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={toolFilter} onValueChange={setToolFilter}>
-                <SelectTrigger className="w-full sm:w-[160px]">
-                  <SelectValue placeholder="Tool" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Tools</SelectItem>
-                  {uniqueTools.map(t => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 text-xs h-8" />
             </div>
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs text-muted-foreground">
-                <X className="w-3 h-3 mr-1" /> Clear filters
-              </Button>
-            )}
+            <Select value={sevFilter} onValueChange={setSevFilter}>
+              <SelectTrigger className="w-full sm:w-32 text-xs h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All severity</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={toolFilter} onValueChange={setToolFilter}>
+              <SelectTrigger className="w-full sm:w-36 text-xs h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All tools</SelectItem>
+                {tools.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {hasFilters && <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => { setSearch(""); setSevFilter("all"); setToolFilter("all"); }}><X className="w-3 h-3 mr-1" /> Clear</Button>}
           </div>
         )}
       </CardHeader>
       <CardContent>
-        {filteredAlerts.length === 0 ? (
-          <div className="text-center py-12 space-y-4">
-            <div className="inline-flex p-4 rounded-full bg-muted/50">
-              <Shield className="w-12 h-12 text-muted-foreground/50" />
-            </div>
-            <div className="space-y-2">
-              <p className="text-base font-medium text-foreground">
-                {hasActiveFilters ? "No matching alerts" : "No alerts yet"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {hasActiveFilters
-                  ? "Try adjusting your filters"
-                  : "Configure your monitoring settings and run a scan to detect threats"}
-              </p>
-            </div>
+        {filtered.length === 0 ? (
+          <div className="text-center py-12">
+            <Shield className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm font-medium text-foreground">{hasFilters ? "No matching alerts" : "No alerts yet"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{hasFilters ? "Adjust your filters" : "Run a scan to detect threats"}</p>
           </div>
         ) : (
-          <ScrollArea className="h-[600px] pr-4">
-            <div className="space-y-3">
-              {filteredAlerts.map((alert, index) => (
-                <Collapsible
-                  key={alert.id}
-                  open={expandedIds.has(alert.id)}
-                  onOpenChange={() => toggleExpand(alert.id)}
-                >
-                  <div
-                    className={`border rounded-lg overflow-hidden transition-all bg-gradient-to-br ${getSeverityGradient(alert.severity)} animate-fade-in hover:shadow-md`}
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <div className="p-3 sm:p-4 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                        <div className="flex-1 space-y-2">
+          <ScrollArea className="h-[520px]">
+            <div className="space-y-2 pr-3">
+              {filtered.map((alert) => (
+                <Collapsible key={alert.id} open={expandedIds.has(alert.id)} onOpenChange={() => toggle(alert.id)}>
+                  <div className={`border rounded-md border-l-2 ${sevBorder(alert.severity)} transition-colors`}>
+                    <div className="p-3 space-y-2">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div className="space-y-1.5 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant="outline" className={`${getSeverityColor(alert.severity)} font-semibold shadow-sm`}>
-                              {alert.severity}
-                            </Badge>
-                            <span className="text-sm font-bold text-foreground">{alert.tool_name}</span>
+                            <Badge variant="outline" className={`text-[10px] ${sevColor(alert.severity)}`}>{alert.severity}</Badge>
+                            <span className="text-xs font-medium text-foreground">{alert.tool_name}</span>
+                            {alert.analysis && <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">Analyzed</Badge>}
                           </div>
-                          <p className="text-sm text-foreground/90 leading-relaxed">{alert.summary}</p>
-                          <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
-                            <span className="font-medium">
-                              {formatDistanceToNow(new Date(alert.detected_at), { addSuffix: true })}
-                            </span>
-                            {alert.sent_to_slack && (
-                              <Badge variant="outline" className="text-xs">✓ Sent</Badge>
-                            )}
-                            {alert.analysis && (
-                              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
-                                <Brain className="w-3 h-3 mr-1" /> Analyzed
-                              </Badge>
-                            )}
-                          </div>
+                          <p className="text-sm text-foreground/80 leading-relaxed">{alert.summary}</p>
+                          <p className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(alert.detected_at), { addSuffix: true })}</p>
                         </div>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 text-xs bg-accent/5 hover:bg-accent/15 border-accent/20 text-accent"
-                            onClick={(e) => { e.stopPropagation(); sendAlert(alert.id); }}
-                            disabled={sendingIds.has(alert.id)}
-                          >
-                            {sendingIds.has(alert.id) ? (
-                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending...</>
-                            ) : (
-                              <><Send className="w-3.5 h-3.5" /> Send</>
-                            )}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); send(alert.id); }} disabled={sendingIds.has(alert.id)}>
+                            {sendingIds.has(alert.id) ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Send className="w-3 h-3 mr-1" /> Send</>}
                           </Button>
                           {alert.source_url && (
-                            <Button variant="ghost" size="sm" asChild className="hover:bg-primary/10">
-                              <a href={alert.source_url} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+                              <a href={alert.source_url} target="_blank" rel="noopener noreferrer"><ExternalLink className="w-3 h-3" /></a>
                             </Button>
                           )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 text-xs bg-primary/5 hover:bg-primary/15 border-primary/20 text-primary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (alert.analysis) toggleExpand(alert.id);
-                              else analyzeAlert(alert.id);
-                            }}
-                            disabled={analyzingIds.has(alert.id)}
-                          >
-                            {analyzingIds.has(alert.id) ? (
-                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Analyzing...</>
-                            ) : alert.analysis ? (
-                              <><Brain className="w-3.5 h-3.5" /> {expandedIds.has(alert.id) ? "Hide" : "View"}</>
-                            ) : (
-                              <><Brain className="w-3.5 h-3.5" /> Analyze</>
-                            )}
+                          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-primary" onClick={(e) => { e.stopPropagation(); alert.analysis ? toggle(alert.id) : analyze(alert.id); }} disabled={analyzingIds.has(alert.id)}>
+                            {analyzingIds.has(alert.id) ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Brain className="w-3 h-3 mr-1" /> {alert.analysis ? (expandedIds.has(alert.id) ? "Hide" : "View") : "Analyze"}</>}
                           </Button>
                         </div>
                       </div>
                     </div>
-
                     <CollapsibleContent>
                       {alert.analysis && (
-                        <div className="border-t border-border/30 bg-background/40 backdrop-blur-sm">
-                          <div className="p-4 space-y-4">
-                            <div className="space-y-2">
-                              <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                                <div className="p-1 rounded bg-primary/10">
-                                  <Lightbulb className="w-3.5 h-3.5 text-primary" />
-                                </div>
-                                Threat Analysis
-                              </h4>
-                              <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap bg-background/50 rounded-lg p-3 border border-border/30">
-                                {alert.analysis}
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                                <div className="p-1 rounded bg-accent/10">
-                                  <ShieldCheck className="w-3.5 h-3.5 text-accent" />
-                                </div>
-                                Remediation Steps
-                              </h4>
-                              <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap bg-background/50 rounded-lg p-3 border border-border/30">
-                                {alert.remediation}
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-xs text-muted-foreground hover:text-primary"
-                              onClick={() => {
-                                setAlerts((prev) =>
-                                  prev.map((a) => a.id === alert.id ? { ...a, analysis: null, remediation: null } : a)
-                                );
-                                analyzeAlert(alert.id);
-                              }}
-                              disabled={analyzingIds.has(alert.id)}
-                            >
-                              <Brain className="w-3 h-3 mr-1" /> Re-analyze
-                            </Button>
+                        <div className="border-t border-border px-3 py-3 space-y-3 bg-muted/30">
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mb-1"><Lightbulb className="w-3 h-3" /> Analysis</p>
+                            <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">{alert.analysis}</p>
                           </div>
+                          {alert.remediation && (
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mb-1"><ShieldCheck className="w-3 h-3" /> Remediation</p>
+                              <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">{alert.remediation}</p>
+                            </div>
+                          )}
+                          <Button variant="ghost" size="sm" className="text-[10px] text-muted-foreground h-6" onClick={() => { setAlerts(p => p.map(a => a.id === alert.id ? { ...a, analysis: null, remediation: null } : a)); analyze(alert.id); }}>
+                            <Brain className="w-2.5 h-2.5 mr-1" /> Re-analyze
+                          </Button>
                         </div>
                       )}
                     </CollapsibleContent>
