@@ -33,6 +33,7 @@ export const AlertTriage = () => {
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
   const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<any[]>([]);
+  const [evidence, setEvidence] = useState<any[]>([]);
   const [savingNote, setSavingNote] = useState(false);
   const { toast } = useToast();
 
