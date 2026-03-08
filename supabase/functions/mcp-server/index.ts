@@ -126,6 +126,20 @@ async function handleMcpRequest(body: any, userId: string) {
               properties: { limit: { type: "number", description: "Max alerts to analyze (default 5)", default: 5 } },
             },
           },
+          {
+            name: "send_alert",
+            description: "Send a specific alert (with analysis/remediation) to all configured notification channels (Slack, Discord, Email)",
+            inputSchema: {
+              type: "object",
+              properties: { alert_id: { type: "string", description: "The UUID of the alert to send" } },
+              required: ["alert_id"],
+            },
+          },
+          {
+            name: "list_notification_channels",
+            description: "List all configured notification channels (Slack, Discord, Email)",
+            inputSchema: { type: "object", properties: {} },
+          },
         ],
       },
     };
