@@ -90,7 +90,7 @@ export const MonitoringConfig = () => {
 
     try {
       const { data, error } = await supabase.functions.invoke("scan-threats", {
-        body: { userId: user.id, manual: true },
+        body: { manual: true },
       });
 
       if (error) throw error;
