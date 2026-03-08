@@ -46,48 +46,76 @@ export type Database = {
       }
       alerts: {
         Row: {
+          acknowledged_at: string | null
           analysis: string | null
+          assigned_to: string | null
+          closed_at: string | null
           created_at: string
           detected_at: string
           id: string
+          incident_id: string | null
+          is_false_positive: boolean
           remediation: string | null
+          resolved_at: string | null
           scan_id: string | null
           sent_to_slack: boolean
           severity: string
           source_url: string | null
+          status: string
           summary: string
           tool_name: string
           user_id: string
         }
         Insert: {
+          acknowledged_at?: string | null
           analysis?: string | null
+          assigned_to?: string | null
+          closed_at?: string | null
           created_at?: string
           detected_at?: string
           id?: string
+          incident_id?: string | null
+          is_false_positive?: boolean
           remediation?: string | null
+          resolved_at?: string | null
           scan_id?: string | null
           sent_to_slack?: boolean
           severity: string
           source_url?: string | null
+          status?: string
           summary: string
           tool_name: string
           user_id: string
         }
         Update: {
+          acknowledged_at?: string | null
           analysis?: string | null
+          assigned_to?: string | null
+          closed_at?: string | null
           created_at?: string
           detected_at?: string
           id?: string
+          incident_id?: string | null
+          is_false_positive?: boolean
           remediation?: string | null
+          resolved_at?: string | null
           scan_id?: string | null
           sent_to_slack?: boolean
           severity?: string
           source_url?: string | null
+          status?: string
           summary?: string
           tool_name?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "alerts_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "alerts_scan_id_fkey"
             columns: ["scan_id"]
@@ -126,6 +154,194 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      case_notes: {
+        Row: {
+          alert_id: string | null
+          content: string
+          created_at: string
+          id: string
+          incident_id: string | null
+          note_type: string
+          user_id: string
+        }
+        Insert: {
+          alert_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          incident_id?: string | null
+          note_type?: string
+          user_id: string
+        }
+        Update: {
+          alert_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          incident_id?: string | null
+          note_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_notes_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_notes_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      escalation_rules: {
+        Row: {
+          created_at: string
+          escalate_after_minutes: number
+          id: string
+          is_active: boolean
+          name: string
+          notify_channel_id: string | null
+          severity_filter: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          escalate_after_minutes?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          notify_channel_id?: string | null
+          severity_filter?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          escalate_after_minutes?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          notify_channel_id?: string | null
+          severity_filter?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escalation_rules_notify_channel_id_fkey"
+            columns: ["notify_channel_id"]
+            isOneToOne: false
+            referencedRelation: "notification_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incidents: {
+        Row: {
+          assigned_to: string | null
+          closed_at: string | null
+          created_at: string
+          description: string | null
+          id: string
+          resolved_at: string | null
+          severity: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          closed_at?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          closed_at?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          resolved_at?: string | null
+          severity?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      iocs: {
+        Row: {
+          alert_id: string | null
+          created_at: string
+          enriched_at: string | null
+          enrichment_data: Json | null
+          id: string
+          incident_id: string | null
+          ioc_type: string
+          ioc_value: string
+          reputation: string | null
+          source: string | null
+          user_id: string
+        }
+        Insert: {
+          alert_id?: string | null
+          created_at?: string
+          enriched_at?: string | null
+          enrichment_data?: Json | null
+          id?: string
+          incident_id?: string | null
+          ioc_type: string
+          ioc_value: string
+          reputation?: string | null
+          source?: string | null
+          user_id: string
+        }
+        Update: {
+          alert_id?: string | null
+          created_at?: string
+          enriched_at?: string | null
+          enrichment_data?: Json | null
+          id?: string
+          incident_id?: string | null
+          ioc_type?: string
+          ioc_value?: string
+          reputation?: string | null
+          source?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "iocs_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "iocs_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       monitoring_config: {
         Row: {
@@ -193,6 +409,141 @@ export type Database = {
         }
         Relationships: []
       }
+      playbook_executions: {
+        Row: {
+          alert_id: string | null
+          completed_at: string | null
+          current_step: number
+          id: string
+          incident_id: string | null
+          playbook_id: string
+          started_at: string
+          status: string
+          step_results: Json
+          user_id: string
+        }
+        Insert: {
+          alert_id?: string | null
+          completed_at?: string | null
+          current_step?: number
+          id?: string
+          incident_id?: string | null
+          playbook_id: string
+          started_at?: string
+          status?: string
+          step_results?: Json
+          user_id: string
+        }
+        Update: {
+          alert_id?: string | null
+          completed_at?: string | null
+          current_step?: number
+          id?: string
+          incident_id?: string | null
+          playbook_id?: string
+          started_at?: string
+          status?: string
+          step_results?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playbook_executions_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playbook_executions_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playbook_executions_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "playbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      playbook_steps: {
+        Row: {
+          action_config: Json
+          action_type: string
+          created_at: string
+          description: string | null
+          id: string
+          playbook_id: string
+          step_order: number
+          title: string
+        }
+        Insert: {
+          action_config?: Json
+          action_type?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          playbook_id: string
+          step_order: number
+          title: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          playbook_id?: string
+          step_order?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playbook_steps_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "playbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      playbooks: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          trigger_conditions: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          trigger_conditions?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          trigger_conditions?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company_name: string | null
@@ -222,6 +573,60 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      response_actions: {
+        Row: {
+          action_type: string
+          alert_id: string | null
+          created_at: string
+          executed_at: string | null
+          id: string
+          incident_id: string | null
+          result: Json | null
+          status: string
+          target: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          alert_id?: string | null
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          incident_id?: string | null
+          result?: Json | null
+          status?: string
+          target: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          alert_id?: string | null
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          incident_id?: string | null
+          result?: Json | null
+          status?: string
+          target?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "response_actions_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "response_actions_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scan_history: {
         Row: {
@@ -256,6 +661,42 @@ export type Database = {
         }
         Relationships: []
       }
+      siem_integrations: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          last_sync_at: string | null
+          name: string
+          siem_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          name: string
+          siem_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          name?: string
+          siem_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       site_content: {
         Row: {
           content_key: string
@@ -283,6 +724,51 @@ export type Database = {
           id?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      sla_config: {
+        Row: {
+          created_at: string
+          critical_ack_minutes: number
+          critical_resolve_minutes: number
+          high_ack_minutes: number
+          high_resolve_minutes: number
+          id: string
+          low_ack_minutes: number
+          low_resolve_minutes: number
+          medium_ack_minutes: number
+          medium_resolve_minutes: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          critical_ack_minutes?: number
+          critical_resolve_minutes?: number
+          high_ack_minutes?: number
+          high_resolve_minutes?: number
+          id?: string
+          low_ack_minutes?: number
+          low_resolve_minutes?: number
+          medium_ack_minutes?: number
+          medium_resolve_minutes?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          critical_ack_minutes?: number
+          critical_resolve_minutes?: number
+          high_ack_minutes?: number
+          high_resolve_minutes?: number
+          id?: string
+          low_ack_minutes?: number
+          low_resolve_minutes?: number
+          medium_ack_minutes?: number
+          medium_resolve_minutes?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -324,6 +810,36 @@ export type Database = {
           status?: string
           subject?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      suppression_rules: {
+        Row: {
+          conditions: Json
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          name: string
+          user_id: string
+        }
+        Insert: {
+          conditions?: Json
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          user_id: string
+        }
+        Update: {
+          conditions?: Json
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
           user_id?: string
         }
         Relationships: []
