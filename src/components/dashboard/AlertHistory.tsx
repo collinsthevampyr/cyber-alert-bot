@@ -3,36 +3,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ExternalLink, Shield } from "lucide-react";
+import { AlertCircle, ExternalLink, Shield, Brain, ChevronDown, ChevronUp, Loader2, Lightbulb, ShieldCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export const AlertHistory = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
 
   useEffect(() => {
     loadAlerts();
 
-    // Subscribe to real-time updates
     const channel = supabase
       .channel("alerts_updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "alerts",
-        },
-        () => {
-          loadAlerts();
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => loadAlerts())
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const loadAlerts = async () => {
@@ -50,33 +42,71 @@ export const AlertHistory = () => {
     setLoading(false);
   };
 
+  const analyzeAlert = async (alertId: string) => {
+    setAnalyzingIds((prev) => new Set(prev).add(alertId));
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-alert", {
+        body: { alertId },
+      });
+
+      if (error) throw error;
+
+      // Update alert in state with analysis
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === alertId ? { ...a, analysis: data.analysis, remediation: data.remediation } : a
+        )
+      );
+
+      // Auto-expand
+      setExpandedIds((prev) => new Set(prev).add(alertId));
+
+      toast({
+        title: data.cached ? "Analysis Retrieved" : "Analysis Complete",
+        description: data.cached ? "Showing cached analysis." : "AI analysis and remediation generated.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "Could not analyze this alert.",
+        variant: "destructive",
+      });
+    }
+
+    setAnalyzingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(alertId);
+      return next;
+    });
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity.toLowerCase()) {
-      case "critical":
-        return "bg-critical/10 text-critical border-critical/20";
-      case "high":
-        return "bg-destructive/10 text-destructive border-destructive/20";
-      case "medium":
-        return "bg-warning/10 text-warning border-warning/20";
-      case "low":
-        return "bg-success/10 text-success border-success/20";
-      default:
-        return "bg-muted text-muted-foreground border-muted";
+      case "critical": return "bg-critical/10 text-critical border-critical/20";
+      case "high": return "bg-destructive/10 text-destructive border-destructive/20";
+      case "medium": return "bg-warning/10 text-warning border-warning/20";
+      case "low": return "bg-success/10 text-success border-success/20";
+      default: return "bg-muted text-muted-foreground border-muted";
     }
   };
 
   const getSeverityGradient = (severity: string) => {
     switch (severity.toLowerCase()) {
-      case "critical":
-        return "from-destructive/20 to-destructive/5 border-destructive/30 hover:border-destructive/50";
-      case "high":
-        return "from-orange-500/20 to-orange-500/5 border-orange-500/30 hover:border-orange-500/50";
-      case "medium":
-        return "from-yellow-500/20 to-yellow-500/5 border-yellow-500/30 hover:border-yellow-500/50";
-      case "low":
-        return "from-green-500/20 to-green-500/5 border-green-500/30 hover:border-green-500/50";
-      default:
-        return "from-secondary/20 to-secondary/5 border-secondary/30 hover:border-secondary/50";
+      case "critical": return "from-destructive/20 to-destructive/5 border-destructive/30 hover:border-destructive/50";
+      case "high": return "from-orange-500/20 to-orange-500/5 border-orange-500/30 hover:border-orange-500/50";
+      case "medium": return "from-yellow-500/20 to-yellow-500/5 border-yellow-500/30 hover:border-yellow-500/50";
+      case "low": return "from-green-500/20 to-green-500/5 border-green-500/30 hover:border-green-500/50";
+      default: return "from-secondary/20 to-secondary/5 border-secondary/30 hover:border-secondary/50";
     }
   };
 
@@ -108,7 +138,7 @@ export const AlertHistory = () => {
               </div>
               Alert History
             </CardTitle>
-            <CardDescription>Recent security threats detected</CardDescription>
+            <CardDescription>Recent security threats detected — click "Analyze" for AI-powered remediation</CardDescription>
           </div>
           {alerts.length > 0 && (
             <Badge variant="secondary" className="text-lg px-3 py-1">
@@ -131,51 +161,138 @@ export const AlertHistory = () => {
             </div>
           </div>
         ) : (
-          <ScrollArea className="h-[500px] pr-4">
+          <ScrollArea className="h-[600px] pr-4">
             <div className="space-y-3">
               {alerts.map((alert, index) => (
-                <div
+                <Collapsible
                   key={alert.id}
-                  className={`border rounded-lg p-4 space-y-3 hover-scale transition-all bg-gradient-to-br ${getSeverityGradient(alert.severity)} animate-fade-in hover:shadow-md`}
-                  style={{ animationDelay: `${index * 50}ms` }}
+                  open={expandedIds.has(alert.id)}
+                  onOpenChange={() => toggleExpand(alert.id)}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge 
-                          variant="outline"
-                          className={`${getSeverityColor(alert.severity)} font-semibold shadow-sm`}
-                        >
-                          {alert.severity}
-                        </Badge>
-                        <span className="text-sm font-bold text-foreground">{alert.tool_name}</span>
-                      </div>
-                      <p className="text-sm text-foreground/90 leading-relaxed">{alert.summary}</p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span className="font-medium">
-                          {formatDistanceToNow(new Date(alert.detected_at), { addSuffix: true })}
-                        </span>
-                        {alert.sent_to_slack && (
-                          <Badge variant="outline" className="text-xs">
-                            ✓ Sent to Slack
-                          </Badge>
-                        )}
+                  <div
+                    className={`border rounded-lg overflow-hidden transition-all bg-gradient-to-br ${getSeverityGradient(alert.severity)} animate-fade-in hover:shadow-md`}
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge
+                              variant="outline"
+                              className={`${getSeverityColor(alert.severity)} font-semibold shadow-sm`}
+                            >
+                              {alert.severity}
+                            </Badge>
+                            <span className="text-sm font-bold text-foreground">{alert.tool_name}</span>
+                          </div>
+                          <p className="text-sm text-foreground/90 leading-relaxed">{alert.summary}</p>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="font-medium">
+                              {formatDistanceToNow(new Date(alert.detected_at), { addSuffix: true })}
+                            </span>
+                            {alert.sent_to_slack && (
+                              <Badge variant="outline" className="text-xs">✓ Sent to Slack</Badge>
+                            )}
+                            {alert.analysis && (
+                              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                                <Brain className="w-3 h-3 mr-1" /> Analyzed
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {alert.source_url && (
+                            <Button variant="ghost" size="sm" asChild className="hover:bg-primary/10">
+                              <a href={alert.source_url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-xs bg-primary/5 hover:bg-primary/15 border-primary/20 text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (alert.analysis) {
+                                toggleExpand(alert.id);
+                              } else {
+                                analyzeAlert(alert.id);
+                              }
+                            }}
+                            disabled={analyzingIds.has(alert.id)}
+                          >
+                            {analyzingIds.has(alert.id) ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Analyzing...
+                              </>
+                            ) : alert.analysis ? (
+                              <>
+                                <Brain className="w-3.5 h-3.5" />
+                                {expandedIds.has(alert.id) ? "Hide" : "View"} Analysis
+                              </>
+                            ) : (
+                              <>
+                                <Brain className="w-3.5 h-3.5" /> Analyze
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    {alert.source_url && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className="hover-scale hover:bg-primary/10"
-                      >
-                        <a href={alert.source_url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </Button>
-                    )}
+
+                    <CollapsibleContent>
+                      {alert.analysis && (
+                        <div className="border-t border-border/30 bg-background/40 backdrop-blur-sm">
+                          <div className="p-4 space-y-4">
+                            {/* Analysis Section */}
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                                <div className="p-1 rounded bg-primary/10">
+                                  <Lightbulb className="w-3.5 h-3.5 text-primary" />
+                                </div>
+                                Threat Analysis
+                              </h4>
+                              <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap bg-background/50 rounded-lg p-3 border border-border/30">
+                                {alert.analysis}
+                              </div>
+                            </div>
+
+                            {/* Remediation Section */}
+                            <div className="space-y-2">
+                              <h4 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                                <div className="p-1 rounded bg-accent/10">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-accent" />
+                                </div>
+                                Remediation Steps
+                              </h4>
+                              <div className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap bg-background/50 rounded-lg p-3 border border-border/30">
+                                {alert.remediation}
+                              </div>
+                            </div>
+
+                            {/* Re-analyze button */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-muted-foreground hover:text-primary"
+                              onClick={() => {
+                                // Clear cached analysis and re-analyze
+                                setAlerts((prev) =>
+                                  prev.map((a) => a.id === alert.id ? { ...a, analysis: null, remediation: null } : a)
+                                );
+                                analyzeAlert(alert.id);
+                              }}
+                              disabled={analyzingIds.has(alert.id)}
+                            >
+                              <Brain className="w-3 h-3 mr-1" /> Re-analyze with latest context
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </CollapsibleContent>
                   </div>
-                </div>
+                </Collapsible>
               ))}
             </div>
           </ScrollArea>

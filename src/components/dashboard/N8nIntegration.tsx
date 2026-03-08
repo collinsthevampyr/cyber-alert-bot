@@ -291,6 +291,7 @@ export const N8nIntegration = () => {
                 <div className="space-y-2">
                   {[
                     { method: "GET", path: "/alerts", desc: "List alerts (query: severity, tool_name, limit, offset)" },
+                    { method: "POST", path: "/alerts/:id/analyze", desc: "AI-analyze an alert — returns expert analysis & remediation steps" },
                     { method: "GET", path: "/scans", desc: "Get scan history" },
                     { method: "POST", path: "/scans/trigger", desc: "Trigger a new security scan" },
                     { method: "GET", path: "/config", desc: "Get monitoring configuration" },
@@ -331,6 +332,8 @@ export const N8nIntegration = () => {
                   <p className="text-xs font-medium text-muted-foreground">Available MCP Tools:</p>
                   <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
                     <li><code>list_alerts</code> — List & filter security alerts</li>
+                    <li><code>analyze_alert</code> — Deep AI analysis with expert remediation</li>
+                    <li><code>analyze_all_unanalyzed</code> — Batch-analyze unanalyzed alerts</li>
                     <li><code>trigger_scan</code> — Run a new threat scan</li>
                     <li><code>get_scan_history</code> — View past scans</li>
                     <li><code>get_config</code> / <code>update_config</code> — Manage monitoring</li>

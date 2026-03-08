@@ -109,6 +109,23 @@ async function handleMcpRequest(body: any, userId: string) {
             description: "Get a summary of alerts by severity and tool for the dashboard",
             inputSchema: { type: "object", properties: {} },
           },
+          {
+            name: "analyze_alert",
+            description: "Perform deep AI analysis on a specific alert. Returns expert-level threat analysis, impact assessment considering the user's full tech stack, and step-by-step remediation recommendations with specific commands and configurations.",
+            inputSchema: {
+              type: "object",
+              properties: { alert_id: { type: "string", description: "The UUID of the alert to analyze" } },
+              required: ["alert_id"],
+            },
+          },
+          {
+            name: "analyze_all_unanalyzed",
+            description: "Find and analyze all alerts that haven't been analyzed yet. Returns analysis and remediation for each.",
+            inputSchema: {
+              type: "object",
+              properties: { limit: { type: "number", description: "Max alerts to analyze (default 5)", default: 5 } },
+            },
+          },
         ],
       },
     };
@@ -274,6 +291,114 @@ async function handleMcpRequest(body: any, userId: string) {
             byTool[a.tool_name] = (byTool[a.tool_name] || 0) + 1;
           }
           result = { total: alerts?.length || 0, by_severity: bySeverity, by_tool: byTool };
+          break;
+        }
+
+        case "analyze_alert": {
+          if (!args.alert_id) { result = { error: "alert_id is required" }; break; }
+          
+          const analyzeUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/analyze-alert`;
+          const resp = await fetch(analyzeUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": "internal",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({ alertId: args.alert_id }),
+          });
+
+          // Since analyze-alert validates via x-api-key or JWT, and we're internal,
+          // we need to call it differently. Let's do the analysis inline instead.
+          const { data: alertData } = await supabaseAdmin
+            .from("alerts")
+            .select("*")
+            .eq("id", args.alert_id)
+            .eq("user_id", userId)
+            .single();
+          
+          if (!alertData) { result = { error: "Alert not found" }; break; }
+          
+          if (alertData.analysis && alertData.remediation) {
+            result = { alert_id: args.alert_id, analysis: alertData.analysis, remediation: alertData.remediation, cached: true };
+            break;
+          }
+
+          const { data: configData } = await supabaseAdmin
+            .from("monitoring_config")
+            .select("tools_list")
+            .eq("user_id", userId)
+            .single();
+
+          const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
+          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                { role: "system", content: `You are a senior cybersecurity analyst. Return ONLY valid JSON: {"analysis": "detailed threat analysis (3-5 paragraphs)", "remediation": "numbered step-by-step remediation"}` },
+                { role: "user", content: `Analyze alert: Tool=${alertData.tool_name}, Severity=${alertData.severity}, Summary=${alertData.summary}, Source=${alertData.source_url || "N/A"}, Stack=${configData?.tools_list?.join(", ") || "Unknown"}` },
+              ],
+            }),
+          });
+
+          if (!aiResp.ok) {
+            const errText = await aiResp.text();
+            result = { error: `AI analysis failed: ${aiResp.status}` };
+            break;
+          }
+
+          const aiContent = (await aiResp.json()).choices?.[0]?.message?.content;
+          const cleanContent = aiContent?.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+          const parsed = JSON.parse(cleanContent);
+
+          await supabaseAdmin.from("alerts").update({ analysis: parsed.analysis, remediation: parsed.remediation }).eq("id", args.alert_id);
+          result = { alert_id: args.alert_id, analysis: parsed.analysis, remediation: parsed.remediation, cached: false };
+          break;
+        }
+
+        case "analyze_all_unanalyzed": {
+          const maxLimit = Math.min(args.limit || 5, 10);
+          const { data: unanalyzed } = await supabaseAdmin
+            .from("alerts")
+            .select("id, tool_name, severity, summary")
+            .eq("user_id", userId)
+            .is("analysis", null)
+            .order("detected_at", { ascending: false })
+            .limit(maxLimit);
+
+          if (!unanalyzed || unanalyzed.length === 0) {
+            result = { message: "All alerts have been analyzed", count: 0 };
+            break;
+          }
+
+          const results: any[] = [];
+          for (const a of unanalyzed) {
+            try {
+              const { data: cfgData } = await supabaseAdmin.from("monitoring_config").select("tools_list").eq("user_id", userId).single();
+              const KEY = Deno.env.get("LOVABLE_API_KEY");
+              const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  model: "google/gemini-2.5-flash",
+                  messages: [
+                    { role: "system", content: `Senior cybersecurity analyst. Return ONLY JSON: {"analysis": "detailed analysis", "remediation": "numbered steps"}` },
+                    { role: "user", content: `Alert: Tool=${a.tool_name}, Severity=${a.severity}, Summary=${a.summary}, Stack=${cfgData?.tools_list?.join(", ") || "Unknown"}` },
+                  ],
+                }),
+              });
+              if (!r.ok) continue;
+              const c = (await r.json()).choices?.[0]?.message?.content;
+              const p = JSON.parse(c?.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+              await supabaseAdmin.from("alerts").update({ analysis: p.analysis, remediation: p.remediation }).eq("id", a.id);
+              results.push({ alert_id: a.id, tool: a.tool_name, severity: a.severity, status: "analyzed" });
+            } catch (e) {
+              results.push({ alert_id: a.id, tool: a.tool_name, status: "failed" });
+            }
+          }
+          result = { analyzed: results.filter(r => r.status === "analyzed").length, failed: results.filter(r => r.status === "failed").length, details: results };
           break;
         }
 

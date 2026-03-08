@@ -16,9 +16,11 @@ export type Database = {
     Tables: {
       alerts: {
         Row: {
+          analysis: string | null
           created_at: string
           detected_at: string
           id: string
+          remediation: string | null
           scan_id: string | null
           sent_to_slack: boolean
           severity: string
@@ -28,9 +30,11 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          analysis?: string | null
           created_at?: string
           detected_at?: string
           id?: string
+          remediation?: string | null
           scan_id?: string | null
           sent_to_slack?: boolean
           severity: string
@@ -40,9 +44,11 @@ export type Database = {
           user_id: string
         }
         Update: {
+          analysis?: string | null
           created_at?: string
           detected_at?: string
           id?: string
+          remediation?: string | null
           scan_id?: string | null
           sent_to_slack?: boolean
           severity?: string

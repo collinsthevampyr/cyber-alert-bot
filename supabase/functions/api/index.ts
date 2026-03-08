@@ -79,6 +79,27 @@ serve(async (req) => {
       return jsonResponse({ alerts: data, count: data?.length || 0 });
     }
 
+    // ===== ALERT ANALYSIS =====
+    if (path.includes("/alerts/") && path.endsWith("/analyze") && req.method === "POST") {
+      const parts = path.split("/");
+      const alertIdx = parts.indexOf("alerts");
+      const alertId = parts[alertIdx + 1];
+
+      // Call analyze-alert edge function
+      const analyzeUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/analyze-alert`;
+      const resp = await fetch(analyzeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": req.headers.get("x-api-key") || "",
+        },
+        body: JSON.stringify({ alertId }),
+      });
+
+      const data = await resp.json();
+      return jsonResponse(data, resp.status);
+    }
+
     // ===== SCANS =====
     if (path.endsWith("/scans") && req.method === "GET") {
       const limit = parseInt(url.searchParams.get("limit") || "20");
