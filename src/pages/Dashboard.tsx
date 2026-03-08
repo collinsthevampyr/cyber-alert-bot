@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Shield, LogOut, Sparkles, BookOpen } from "lucide-react";
+import { Shield, LogOut, Sparkles, BookOpen, Settings } from "lucide-react";
 import { MonitoringConfig } from "@/components/dashboard/MonitoringConfig";
 import { ScanStatus } from "@/components/dashboard/ScanStatus";
 import { AlertHistory } from "@/components/dashboard/AlertHistory";
 import { N8nIntegration } from "@/components/dashboard/N8nIntegration";
 import { NotificationChannels } from "@/components/dashboard/NotificationChannels";
+import { DashboardAnalytics } from "@/components/dashboard/DashboardAnalytics";
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -60,34 +61,43 @@ const Dashboard = () => {
               <h1 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
                 SecureWatch AI
               </h1>
-              <p className="text-xs text-muted-foreground">Threat Monitoring Dashboard</p>
+              <p className="text-xs text-muted-foreground hidden sm:block">Threat Monitoring Dashboard</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <Button 
-              variant="outline" 
+              variant="ghost" 
               size="sm" 
               onClick={() => navigate("/docs")}
-              className="hover-scale transition-all"
+              className="hidden sm:flex"
             >
-              <BookOpen className="w-4 h-4 mr-2" />
-              Docs
+              <BookOpen className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Docs</span>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate("/settings")}
+            >
+              <Settings className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Settings</span>
             </Button>
             <Button 
               variant="outline" 
               size="sm" 
               onClick={handleLogout}
-              className="hover-scale transition-all hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
+              className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+              <LogOut className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="relative container mx-auto px-4 py-8">
+      <main className="relative container mx-auto px-4 py-6 sm:py-8">
         <div className="space-y-6 animate-fade-in">
+          <DashboardAnalytics />
           <MonitoringConfig />
           <NotificationChannels />
           <ScanStatus />
