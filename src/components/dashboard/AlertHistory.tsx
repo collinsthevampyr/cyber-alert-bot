@@ -227,6 +227,19 @@ export const AlertHistory = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-xs bg-accent/5 hover:bg-accent/15 border-accent/20 text-accent"
+                            onClick={(e) => { e.stopPropagation(); sendAlert(alert.id); }}
+                            disabled={sendingIds.has(alert.id)}
+                          >
+                            {sendingIds.has(alert.id) ? (
+                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending...</>
+                            ) : (
+                              <><Send className="w-3.5 h-3.5" /> Send</>
+                            )}
+                          </Button>
                           {alert.source_url && (
                             <Button variant="ghost" size="sm" asChild className="hover:bg-primary/10">
                               <a href={alert.source_url} target="_blank" rel="noopener noreferrer">
