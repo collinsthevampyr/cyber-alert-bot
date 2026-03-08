@@ -8,6 +8,7 @@ import { SLADashboard } from "@/components/soc/SLADashboard";
 import { ResponseActions } from "@/components/soc/ResponseActions";
 import { SIEMIntegrations } from "@/components/soc/SIEMIntegrations";
 import { ShiftHandover } from "@/components/soc/ShiftHandover";
+import { SOCMetrics } from "@/components/soc/SOCMetrics";
 
 const SOCWorkspace = () => {
   return (
