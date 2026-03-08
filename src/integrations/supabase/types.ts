@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          target_id: string | null
+          target_type: string
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_id?: string | null
+          target_type?: string
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           analysis: string | null
@@ -360,7 +390,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_get_analytics: { Args: never; Returns: Json }
       admin_get_stats: { Args: never; Returns: Json }
+      admin_get_system_health: { Args: never; Returns: Json }
       admin_list_users: {
         Args: never
         Returns: {
