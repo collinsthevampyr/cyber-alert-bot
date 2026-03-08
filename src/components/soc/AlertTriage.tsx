@@ -26,6 +26,7 @@ const STATUS_OPTIONS = [
 
 export const AlertTriage = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [allCounts, setAllCounts] = useState({ open: 0, acknowledged: 0, investigating: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("open");
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
@@ -40,10 +41,25 @@ export const AlertTriage = () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Load filtered alerts
     let q = supabase.from("alerts").select("*").eq("user_id", user.id).order("detected_at", { ascending: false }).limit(100);
     if (statusFilter !== "all") q = q.eq("status", statusFilter);
-    const { data } = await q;
-    setAlerts(data || []);
+
+    // Load all alerts for global counts
+    const [filtered, all] = await Promise.all([
+      q,
+      supabase.from("alerts").select("id, status").eq("user_id", user.id),
+    ]);
+
+    setAlerts(filtered.data || []);
+    const allAlerts = all.data || [];
+    setAllCounts({
+      open: allAlerts.filter(a => a.status === "open").length,
+      acknowledged: allAlerts.filter(a => a.status === "acknowledged").length,
+      investigating: allAlerts.filter(a => a.status === "investigating").length,
+      total: allAlerts.length,
+    });
     setLoading(false);
   };
 
