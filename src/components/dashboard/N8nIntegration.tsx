@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Key, Webhook, Plus, Trash2, Copy, Eye, EyeOff, ExternalLink, Zap, Code, AlertCircle } from "lucide-react";
+import { Key, Webhook, Plus, Trash2, Copy, Eye, EyeOff, ExternalLink, Zap, Code, AlertCircle, TestTube, Loader2, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const N8nIntegration = () => {
@@ -19,6 +19,7 @@ export const N8nIntegration = () => {
   const [loading, setLoading] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
@@ -263,15 +264,54 @@ export const N8nIntegration = () => {
                         <Badge key={e} variant="outline" className="text-[10px]">{e}</Badge>
                       ))}
                     </div>
-                    {wh.last_triggered_at && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Last triggered: {new Date(wh.last_triggered_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                  <Button size="icon" variant="ghost" className="hover:text-destructive" onClick={() => deleteWebhook(wh.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                     {wh.last_triggered_at && (
+                       <p className="text-xs text-muted-foreground mt-1">
+                         Last triggered: {new Date(wh.last_triggered_at).toLocaleDateString()}
+                       </p>
+                     )}
+                   </div>
+                   <div className="flex gap-1">
+                     <Button
+                       size="icon"
+                       variant="ghost"
+                       className="hover:text-primary"
+                       disabled={testingWebhookId === wh.id}
+                       onClick={async () => {
+                         setTestingWebhookId(wh.id);
+                         try {
+                           const resp = await fetch(wh.url, {
+                             method: "POST",
+                             headers: { "Content-Type": "application/json" },
+                             body: JSON.stringify({
+                               event: "test",
+                               message: "This is a test payload from SecureWatch AI",
+                               timestamp: new Date().toISOString(),
+                               sample_alert: {
+                                 tool_name: "Test Tool",
+                                 severity: "Medium",
+                                 summary: "This is a sample alert to verify your webhook connection works correctly.",
+                                 source_url: "https://example.com/test",
+                                 detected_at: new Date().toISOString(),
+                               },
+                             }),
+                           });
+                           if (resp.ok) {
+                             toast({ title: "Test Sent!", description: "Sample payload delivered to your webhook." });
+                           } else {
+                             toast({ title: "Test Failed", description: `Webhook returned ${resp.status}. Check the URL.`, variant: "destructive" });
+                           }
+                         } catch (e: any) {
+                           toast({ title: "Test Failed", description: e.message || "Could not reach the webhook URL.", variant: "destructive" });
+                         }
+                         setTestingWebhookId(null);
+                       }}
+                     >
+                       {testingWebhookId === wh.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4" />}
+                     </Button>
+                     <Button size="icon" variant="ghost" className="hover:text-destructive" onClick={() => deleteWebhook(wh.id)}>
+                       <Trash2 className="w-4 h-4" />
+                     </Button>
+                   </div>
                 </div>
               ))}
               {webhooks.length === 0 && (
