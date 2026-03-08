@@ -1,4 +1,4 @@
-import { Shield, BarChart3, Sliders, BookOpen, UserCircle, LogOut, LifeBuoy, ShieldCheck } from "lucide-react";
+import { Shield, BarChart3, Sliders, BookOpen, UserCircle, LogOut, LifeBuoy, ShieldCheck, Crosshair } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 
 const mainNav = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "SOC Workspace", url: "/soc", icon: Crosshair },
   { title: "Configuration", url: "/configuration", icon: Sliders },
   { title: "Documentation", url: "/docs", icon: BookOpen },
   { title: "Support", url: "/support", icon: LifeBuoy },

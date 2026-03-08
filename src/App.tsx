@@ -13,6 +13,7 @@ import Settings from "./pages/Settings";
 import Support from "./pages/Support";
 import AdminDashboard from "./pages/AdminDashboard";
 import ResetPassword from "./pages/ResetPassword";
+import SOCWorkspace from "./pages/SOCWorkspace";
 import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
 
@@ -33,6 +34,7 @@ const App = () => (
           {/* Authenticated routes with sidebar */}
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/soc" element={<SOCWorkspace />} />
             <Route path="/configuration" element={<Configuration />} />
             <Route path="/docs" element={<Documentation />} />
             <Route path="/settings" element={<Settings />} />
