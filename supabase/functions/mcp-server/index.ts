@@ -109,6 +109,23 @@ async function handleMcpRequest(body: any, userId: string) {
             description: "Get a summary of alerts by severity and tool for the dashboard",
             inputSchema: { type: "object", properties: {} },
           },
+          {
+            name: "analyze_alert",
+            description: "Perform deep AI analysis on a specific alert. Returns expert-level threat analysis, impact assessment considering the user's full tech stack, and step-by-step remediation recommendations with specific commands and configurations.",
+            inputSchema: {
+              type: "object",
+              properties: { alert_id: { type: "string", description: "The UUID of the alert to analyze" } },
+              required: ["alert_id"],
+            },
+          },
+          {
+            name: "analyze_all_unanalyzed",
+            description: "Find and analyze all alerts that haven't been analyzed yet. Returns analysis and remediation for each.",
+            inputSchema: {
+              type: "object",
+              properties: { limit: { type: "number", description: "Max alerts to analyze (default 5)", default: 5 } },
+            },
+          },
         ],
       },
     };
