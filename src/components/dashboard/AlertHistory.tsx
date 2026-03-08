@@ -82,6 +82,31 @@ export const AlertHistory = () => {
     });
   };
 
+  const sendAlert = async (alertId: string) => {
+    setSendingIds((prev) => new Set(prev).add(alertId));
+    try {
+      const { data, error } = await supabase.functions.invoke("send-notification", {
+        body: { alertId },
+      });
+      if (error) throw error;
+      toast({
+        title: "Notifications Sent",
+        description: `Sent to ${data.sent}/${data.total} channels.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Send Failed",
+        description: error.message || "Could not send notifications.",
+        variant: "destructive",
+      });
+    }
+    setSendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(alertId);
+      return next;
+    });
+  };
+
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
