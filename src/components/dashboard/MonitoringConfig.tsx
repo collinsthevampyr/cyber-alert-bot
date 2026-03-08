@@ -230,9 +230,10 @@ export const MonitoringConfig = () => {
             <Input
               placeholder="e.g., WordPress, AWS, Splunk"
               value={newTool}
-              onChange={(e) => setNewTool(e.target.value)}
+              onChange={(e) => { setNewTool(e.target.value); setToolError(null); }}
               onKeyPress={(e) => e.key === "Enter" && addTool()}
-              className="transition-all focus:ring-2 focus:ring-primary/20"
+              className={`transition-all focus:ring-2 focus:ring-primary/20 ${toolError ? 'border-destructive' : ''}`}
+              maxLength={MAX_TOOL_NAME_LENGTH}
             />
             <Button 
               onClick={addTool} 
@@ -242,6 +243,8 @@ export const MonitoringConfig = () => {
               <Plus className="w-4 h-4" />
             </Button>
           </div>
+          {toolError && <p className="text-sm text-destructive">{toolError}</p>}
+          <p className="text-xs text-muted-foreground">{tools.length}/{MAX_TOOLS} tools added</p>
           <div className="flex flex-wrap gap-2 mt-3 min-h-[40px]">
             {tools.map((tool, index) => (
               <Badge 
