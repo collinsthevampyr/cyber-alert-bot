@@ -19,6 +19,7 @@ export const N8nIntegration = () => {
   const [loading, setLoading] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
