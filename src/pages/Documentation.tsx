@@ -247,7 +247,7 @@ const Documentation = () => {
             </Card>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 };
