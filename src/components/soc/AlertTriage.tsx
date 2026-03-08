@@ -139,14 +139,14 @@ export const AlertTriage = () => {
       {/* Status summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Open", count: counts.open, color: "text-warning" },
-          { label: "Acknowledged", count: counts.acknowledged, color: "text-info" },
-          { label: "Investigating", count: counts.investigating, color: "text-primary" },
-          { label: "Total", count: alerts.length, color: "text-foreground" },
+          { label: "Open", count: allCounts.open, color: "text-orange-400" },
+          { label: "Acknowledged", count: allCounts.acknowledged, color: "text-blue-400" },
+          { label: "Investigating", count: allCounts.investigating, color: "text-primary" },
+          { label: "Total", count: allCounts.total, color: "text-foreground" },
         ].map(s => (
           <Card key={s.label}>
             <CardContent className="p-3 text-center">
-              <p className={`text-2xl font-bold ${s.color}`}>{statusFilter === "all" || s.label === "Total" ? s.count : "—"}</p>
+              <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
               <p className="text-xs text-muted-foreground">{s.label}</p>
             </CardContent>
           </Card>
