@@ -37,6 +37,13 @@ export const AlertTriage = () => {
 
   useEffect(() => { loadAlerts(); }, [statusFilter]);
 
+  useEffect(() => {
+    const ch = supabase.channel("alert_triage_rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => loadAlerts())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [statusFilter]);
+
   const loadAlerts = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();

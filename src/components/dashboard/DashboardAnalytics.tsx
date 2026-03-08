@@ -11,18 +11,25 @@ export const DashboardAnalytics = () => {
   const [scans, setScans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const [a, s] = await Promise.all([
+      supabase.from("alerts").select("*").eq("user_id", user.id).order("detected_at", { ascending: false }),
+      supabase.from("scan_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+    ]);
+    setAlerts(a.data || []);
+    setScans(s.data || []);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const [a, s] = await Promise.all([
-        supabase.from("alerts").select("*").eq("user_id", user.id).order("detected_at", { ascending: false }),
-        supabase.from("scan_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-      ]);
-      setAlerts(a.data || []);
-      setScans(s.data || []);
-      setLoading(false);
-    })();
+    loadData();
+    const ch = supabase.channel("dashboard_analytics_rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => loadData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "scan_history" }, () => loadData())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, []);
 
   const alertTrends = (() => {

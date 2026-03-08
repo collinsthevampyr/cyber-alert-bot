@@ -28,6 +28,13 @@ export const ResponseActions = () => {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    const ch = supabase.channel("response_actions_rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "response_actions" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
   const load = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
