@@ -6,6 +6,7 @@ import { Shield, LogOut, Sparkles } from "lucide-react";
 import { MonitoringConfig } from "@/components/dashboard/MonitoringConfig";
 import { ScanStatus } from "@/components/dashboard/ScanStatus";
 import { AlertHistory } from "@/components/dashboard/AlertHistory";
+import { N8nIntegration } from "@/components/dashboard/N8nIntegration";
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
