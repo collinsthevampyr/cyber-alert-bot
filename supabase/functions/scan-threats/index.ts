@@ -237,6 +237,38 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
 
     console.log(`Scan completed. Found ${alerts.length} alerts.`);
 
+    // Trigger registered webhooks for new alerts
+    if (alerts.length > 0) {
+      const { data: webhooks } = await supabaseClient
+        .from("webhooks")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("is_active", true);
+
+      if (webhooks) {
+        for (const webhook of webhooks) {
+          if (webhook.events?.includes("alert.created")) {
+            try {
+              await fetch(webhook.url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  event: "alert.created",
+                  scan_id: scan.id,
+                  alerts,
+                  timestamp: new Date().toISOString(),
+                }),
+              });
+              await supabaseClient.from("webhooks").update({ last_triggered_at: new Date().toISOString() }).eq("id", webhook.id);
+              console.log(`Webhook triggered: ${webhook.name}`);
+            } catch (whErr) {
+              console.error("Webhook delivery failed:", whErr);
+            }
+          }
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
