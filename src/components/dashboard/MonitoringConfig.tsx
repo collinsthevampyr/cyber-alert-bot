@@ -10,9 +10,29 @@ import { useToast } from "@/hooks/use-toast";
 import { Settings, X, Plus, PlayCircle, ExternalLink, CheckCircle, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+const SLACK_WEBHOOK_PATTERN = /^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
+const TOOL_NAME_PATTERN = /^[a-zA-Z0-9\s._\-/()]+$/;
+const MAX_TOOL_NAME_LENGTH = 100;
+const MAX_TOOLS = 50;
+
+const validateToolName = (name: string): string | null => {
+  if (!name.trim()) return "Tool name cannot be empty";
+  if (name.trim().length > MAX_TOOL_NAME_LENGTH) return `Tool name must be under ${MAX_TOOL_NAME_LENGTH} characters`;
+  if (!TOOL_NAME_PATTERN.test(name.trim())) return "Tool name can only contain letters, numbers, spaces, and . _ - / ( )";
+  return null;
+};
+
+const validateSlackWebhook = (url: string): string | null => {
+  if (!url) return null; // optional field
+  if (!SLACK_WEBHOOK_PATTERN.test(url)) return "Must be a valid Slack webhook URL (https://hooks.slack.com/services/...)";
+  return null;
+};
+
 export const MonitoringConfig = () => {
   const [tools, setTools] = useState<string[]>([]);
   const [newTool, setNewTool] = useState("");
+  const [toolError, setToolError] = useState<string | null>(null);
+  const [webhookError, setWebhookError] = useState<string | null>(null);
   const [slackWebhook, setSlackWebhook] = useState("");
   const [frequency, setFrequency] = useState("hourly");
   const [loading, setLoading] = useState(false);
@@ -42,14 +62,36 @@ export const MonitoringConfig = () => {
   };
 
   const addTool = () => {
-    if (newTool.trim() && !tools.includes(newTool.trim())) {
-      setTools([...tools, newTool.trim()]);
-      setNewTool("");
+    const trimmed = newTool.trim();
+    const error = validateToolName(trimmed);
+    if (error) {
+      setToolError(error);
+      return;
     }
+    if (tools.includes(trimmed)) {
+      setToolError("This tool is already added");
+      return;
+    }
+    if (tools.length >= MAX_TOOLS) {
+      setToolError(`Maximum ${MAX_TOOLS} tools allowed`);
+      return;
+    }
+    setToolError(null);
+    setTools([...tools, trimmed]);
+    setNewTool("");
   };
 
   const removeTool = (tool: string) => {
     setTools(tools.filter(t => t !== tool));
+  };
+
+  const handleWebhookChange = (value: string) => {
+    setSlackWebhook(value);
+    if (value) {
+      setWebhookError(validateSlackWebhook(value));
+    } else {
+      setWebhookError(null);
+    }
   };
 
   const saveConfig = async () => {
