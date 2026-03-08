@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Shield, LogOut, Sparkles } from "lucide-react";
+import { Shield, LogOut, Sparkles, BookOpen } from "lucide-react";
 import { MonitoringConfig } from "@/components/dashboard/MonitoringConfig";
 import { ScanStatus } from "@/components/dashboard/ScanStatus";
 import { AlertHistory } from "@/components/dashboard/AlertHistory";
