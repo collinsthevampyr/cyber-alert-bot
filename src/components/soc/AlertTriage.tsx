@@ -77,6 +77,11 @@ export const AlertTriage = () => {
     setNotes(data || []);
   };
 
+  const loadEvidence = useCallback(async (alertId: string) => {
+    const { data } = await supabase.from("evidence_attachments").select("*").eq("alert_id", alertId).order("created_at", { ascending: false });
+    setEvidence(data || []);
+  }, []);
+
   const updateStatus = async (alertId: string, status: string) => {
     const updates: any = { status };
     if (status === "acknowledged") updates.acknowledged_at = new Date().toISOString();
