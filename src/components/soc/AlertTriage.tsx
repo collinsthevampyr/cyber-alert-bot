@@ -14,6 +14,7 @@ import {
   AlertCircle, CheckCircle, Eye, EyeOff, Clock, UserCheck, XCircle,
   MessageSquare, Shield, Loader2, ChevronRight
 } from "lucide-react";
+import { EvidenceUploader } from "./EvidenceUploader";
 
 const STATUS_OPTIONS = [
   { value: "open", label: "Open", icon: AlertCircle, color: "text-warning" },
