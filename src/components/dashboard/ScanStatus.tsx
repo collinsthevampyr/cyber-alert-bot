@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Clock, AlertTriangle, CheckCircle, TrendingUp } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Activity, Clock, AlertTriangle, CheckCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Progress } from "@/components/ui/progress";
 
@@ -11,111 +11,68 @@ export const ScanStatus = () => {
 
   useEffect(() => {
     loadScanStatus();
-    
-    // Subscribe to real-time updates
-    const channel = supabase
-      .channel("scan_updates")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "scan_history",
-        },
-        () => {
-          loadScanStatus();
-        }
-      )
+    const channel = supabase.channel("scan_updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "scan_history" }, () => loadScanStatus())
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const loadScanStatus = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    const { data: scans } = await supabase
-      .from("scan_history")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (scans && scans.length > 0) {
-      setLastScan(scans[0]);
-    }
-
-    const { count } = await supabase
-      .from("alerts")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
-
+    const { data: scans } = await supabase.from("scan_history").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1);
+    if (scans?.length) setLastScan(scans[0]);
+    const { count } = await supabase.from("alerts").select("*", { count: "exact", head: true }).eq("user_id", user.id);
     setTotalAlerts(count || 0);
   };
 
-  const getStatusIcon = () => {
-    if (!lastScan) return <Activity className="w-5 h-5 text-muted-foreground" />;
-    
-    switch (lastScan.status) {
-      case "completed":
-        return <CheckCircle className="w-5 h-5 text-success" />;
-      case "running":
-        return <Activity className="w-5 h-5 text-info animate-pulse" />;
-      case "error":
-        return <AlertTriangle className="w-5 h-5 text-destructive" />;
-      default:
-        return <Activity className="w-5 h-5 text-muted-foreground" />;
-    }
-  };
+  const statusIcon = (() => {
+    if (!lastScan) return <Activity className="w-4 h-4 text-muted-foreground" />;
+    if (lastScan.status === "completed") return <CheckCircle className="w-4 h-4 text-success" />;
+    if (lastScan.status === "running") return <Activity className="w-4 h-4 text-info animate-pulse" />;
+    if (lastScan.status === "error") return <AlertTriangle className="w-4 h-4 text-destructive" />;
+    return <Activity className="w-4 h-4 text-muted-foreground" />;
+  })();
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 hover:border-primary/20 hover:-translate-y-1">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Scan Status</CardTitle>
-          {getStatusIcon()}
+    <div className="grid gap-3 sm:grid-cols-3">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Scan status</CardTitle>
+          {statusIcon}
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-            {lastScan ? lastScan.status.charAt(0).toUpperCase() + lastScan.status.slice(1) : "No scans yet"}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {lastScan?.error_message || "System operational"}
+        <CardContent className="px-4 pb-4">
+          <p className="text-xl font-semibold text-foreground">
+            {lastScan ? lastScan.status.charAt(0).toUpperCase() + lastScan.status.slice(1) : "No scans"}
           </p>
-          {lastScan?.status === "running" && (
-            <Progress value={66} className="h-1 mt-3" />
-          )}
+          <p className="text-xs text-muted-foreground mt-0.5">{lastScan?.error_message || "Operational"}</p>
+          {lastScan?.status === "running" && <Progress value={66} className="h-0.5 mt-3" />}
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 hover:border-accent/20 hover:-translate-y-1">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Last Scan</CardTitle>
-          <Clock className="w-5 h-5 text-muted-foreground" />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Last scan</CardTitle>
+          <Clock className="w-4 h-4 text-muted-foreground" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+        <CardContent className="px-4 pb-4">
+          <p className="text-xl font-semibold text-foreground">
             {lastScan ? formatDistanceToNow(new Date(lastScan.scan_started_at), { addSuffix: true }) : "Never"}
-          </div>
-          <p className="text-xs text-muted-foreground flex items-center gap-1">
-            {lastScan ? `${lastScan.alerts_found} alerts found` : "Configure monitoring to start"}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {lastScan ? `${lastScan.alerts_found} alerts found` : "Configure to start"}
           </p>
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:shadow-lg transition-all duration-300 hover:border-destructive/20 hover:-translate-y-1">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Alerts</CardTitle>
-          <AlertTriangle className="w-5 h-5 text-warning animate-pulse" />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4">
+          <CardTitle className="text-xs font-medium text-muted-foreground">Total alerts</CardTitle>
+          <AlertTriangle className="w-4 h-4 text-muted-foreground" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-            {totalAlerts}
-          </div>
-          <p className="text-xs text-muted-foreground">All time</p>
+        <CardContent className="px-4 pb-4">
+          <p className="text-xl font-semibold text-foreground tabular-nums">{totalAlerts}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">All time</p>
         </CardContent>
       </Card>
     </div>

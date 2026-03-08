@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Shield, LogOut, Sparkles, BookOpen, Settings } from "lucide-react";
+import { Shield, LogOut, BookOpen, Settings as SettingsIcon } from "lucide-react";
 import { MonitoringConfig } from "@/components/dashboard/MonitoringConfig";
 import { ScanStatus } from "@/components/dashboard/ScanStatus";
 import { AlertHistory } from "@/components/dashboard/AlertHistory";
@@ -20,9 +20,7 @@ const Dashboard = () => {
 
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      navigate("/login");
-    }
+    if (!user) navigate("/login");
     setLoading(false);
   };
 
@@ -34,76 +32,45 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Shield className="w-12 h-12 text-primary animate-pulse mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
+        <Shield className="w-8 h-8 text-primary animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      {/* Animated background elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-accent/5 rounded-full blur-3xl animate-pulse delay-700" />
-      </div>
-
-      <header className="relative border-b border-border/50 bg-card/80 backdrop-blur-xl supports-[backdrop-filter]:bg-card/60 shadow-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 group">
-            <div className="relative">
-              <Shield className="w-8 h-8 text-primary transition-transform group-hover:scale-110" />
-              <Sparkles className="w-3 h-3 text-accent absolute -top-1 -right-1 animate-pulse" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                SecureWatch AI
-              </h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">Threat Monitoring Dashboard</p>
-            </div>
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border sticky top-0 z-10 bg-background">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Shield className="w-5 h-5 text-primary" />
+            <span className="font-semibold tracking-tight text-foreground">SecureWatch</span>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate("/docs")}
-              className="hidden sm:flex"
-            >
-              <BookOpen className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Docs</span>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/docs")} className="text-muted-foreground hover:text-foreground">
+              <BookOpen className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline text-xs">Docs</span>
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate("/settings")}
-            >
-              <Settings className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Settings</span>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/settings")} className="text-muted-foreground hover:text-foreground">
+              <SettingsIcon className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline text-xs">Settings</span>
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleLogout}
-              className="hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
-            >
-              <LogOut className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Logout</span>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
+              <LogOut className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline text-xs">Sign out</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="relative container mx-auto px-4 py-6 sm:py-8">
-        <div className="space-y-6 animate-fade-in">
-          <DashboardAnalytics />
+      <main className="container mx-auto px-4 py-6 space-y-6">
+        <DashboardAnalytics />
+        <ScanStatus />
+        <div className="grid lg:grid-cols-2 gap-6">
           <MonitoringConfig />
           <NotificationChannels />
-          <ScanStatus />
-          <AlertHistory />
-          <N8nIntegration />
         </div>
+        <AlertHistory />
+        <N8nIntegration />
       </main>
     </div>
   );

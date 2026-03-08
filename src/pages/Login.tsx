@@ -20,44 +20,29 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Authentication failed", description: error.message, variant: "destructive" });
     } else {
       navigate("/dashboard");
     }
-
     setLoading(false);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      toast({ title: "Error", description: "Please enter your email address.", variant: "destructive" });
+      toast({ title: "Email required", description: "Enter your email address.", variant: "destructive" });
       return;
     }
     setResetLoading(true);
-
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
-
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      toast({
-        title: "Reset Link Sent",
-        description: "Check your email for a password reset link.",
-      });
+      toast({ title: "Check your email", description: "We've sent you a password reset link." });
       setResetMode(false);
     }
     setResetLoading(false);
@@ -65,20 +50,17 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-            <Shield className="w-8 h-8 text-primary" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">SecureWatch AI</h1>
-          <p className="text-muted-foreground">Cyber Threat Monitoring</p>
+      <div className="w-full max-w-sm">
+        <div className="flex items-center justify-center gap-2.5 mb-8">
+          <Shield className="w-6 h-6 text-primary" />
+          <span className="text-lg font-semibold tracking-tight text-foreground">SecureWatch</span>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{resetMode ? "Reset Password" : "Welcome Back"}</CardTitle>
+        <Card className="border-border">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-xl">{resetMode ? "Reset password" : "Sign in"}</CardTitle>
             <CardDescription>
-              {resetMode ? "Enter your email and we'll send you a reset link" : "Sign in to your account to continue"}
+              {resetMode ? "Enter your email for a reset link" : "Enter your credentials to continue"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -86,25 +68,13 @@ const Login = () => {
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="reset-email">Email</Label>
-                  <Input
-                    id="reset-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
+                  <Input id="reset-email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
                 <Button type="submit" className="w-full" disabled={resetLoading}>
-                  {resetLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</> : "Send Reset Link"}
+                  {resetLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</> : "Send reset link"}
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => setResetMode(false)}
-                >
-                  Back to Sign In
+                <Button type="button" variant="ghost" className="w-full text-muted-foreground" onClick={() => setResetMode(false)}>
+                  Back to sign in
                 </Button>
               </form>
             ) : (
@@ -112,50 +82,27 @@ const Login = () => {
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
+                    <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="password">Password</Label>
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="p-0 h-auto text-xs text-muted-foreground hover:text-primary"
-                        onClick={() => setResetMode(true)}
-                      >
+                      <button type="button" onClick={() => setResetMode(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                         Forgot password?
-                      </Button>
+                      </button>
                     </div>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
+                    <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in..." : "Sign In"}
+                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in...</> : "Sign in"}
                   </Button>
                 </form>
-                <div className="mt-4 text-center text-sm">
-                  <span className="text-muted-foreground">Don't have an account? </span>
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto font-normal"
-                    onClick={() => navigate("/signup")}
-                  >
+                <p className="mt-4 text-center text-sm text-muted-foreground">
+                  No account?{" "}
+                  <button onClick={() => navigate("/signup")} className="text-foreground hover:text-primary transition-colors underline-offset-4 hover:underline">
                     Sign up
-                  </Button>
-                </div>
+                  </button>
+                </p>
               </>
             )}
           </CardContent>
