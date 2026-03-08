@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.cron-scan]
 verify_jwt = false
+
+[functions.siem-ingest]
+verify_jwt = false

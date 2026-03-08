@@ -6,6 +6,48 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Check if an alert should be suppressed based on active suppression rules
+async function checkSuppression(supabase: any, userId: string, toolName: string, threat: any): Promise<boolean> {
+  const { data: rules } = await supabase
+    .from("suppression_rules")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  if (!rules?.length) return false;
+
+  const now = new Date();
+
+  for (const rule of rules) {
+    // Skip expired rules
+    if (rule.expires_at && new Date(rule.expires_at) < now) continue;
+
+    const conditions = rule.conditions as any;
+    if (!conditions) continue;
+
+    let matches = true;
+
+    // Check tool_name condition
+    if (conditions.tool_name && conditions.tool_name.toLowerCase() !== toolName.toLowerCase()) {
+      matches = false;
+    }
+
+    // Check severity condition
+    if (conditions.severity && threat.severity && conditions.severity.toLowerCase() !== threat.severity.toLowerCase()) {
+      matches = false;
+    }
+
+    // Check keyword condition (substring match in summary)
+    if (conditions.keyword && threat.summary && !threat.summary.toLowerCase().includes(conditions.keyword.toLowerCase())) {
+      matches = false;
+    }
+
+    if (matches) return true;
+  }
+
+  return false;
+}
+
 // Maps frequency config to minutes
 const FREQUENCY_MINUTES: Record<string, number> = {
   "15min": 15,
