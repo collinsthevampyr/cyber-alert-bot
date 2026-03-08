@@ -1,4 +1,4 @@
-import { Shield, BarChart3, Sliders, BookOpen, UserCircle, LogOut, LifeBuoy, ShieldCheck } from "lucide-react";
+import { Shield, BarChart3, Sliders, BookOpen, UserCircle, LogOut, LifeBuoy, ShieldCheck, Crosshair } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
