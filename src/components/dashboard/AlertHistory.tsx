@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ExternalLink, Shield, Brain, ChevronDown, ChevronUp, Loader2, Lightbulb, ShieldCheck } from "lucide-react";
+import { AlertCircle, ExternalLink, Shield, Brain, ChevronDown, ChevronUp, Loader2, Lightbulb, ShieldCheck, Send } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
