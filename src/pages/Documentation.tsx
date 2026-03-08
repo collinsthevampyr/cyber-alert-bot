@@ -216,20 +216,7 @@ const Documentation = () => {
   const active = sections.find(s => s.id === activeSection);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border sticky top-0 z-10 bg-background">
-        <div className="container mx-auto px-4 h-14 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="text-muted-foreground">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-muted-foreground" />
-            <span className="font-semibold tracking-tight text-foreground">Documentation</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-6">
+    <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-6">
           <aside className="lg:w-56 flex-shrink-0">
             <div className="lg:sticky lg:top-20 space-y-2">
