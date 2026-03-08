@@ -7,6 +7,7 @@ import { MonitoringConfig } from "@/components/dashboard/MonitoringConfig";
 import { ScanStatus } from "@/components/dashboard/ScanStatus";
 import { AlertHistory } from "@/components/dashboard/AlertHistory";
 import { N8nIntegration } from "@/components/dashboard/N8nIntegration";
+import { NotificationChannels } from "@/components/dashboard/NotificationChannels";
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -77,6 +78,7 @@ const Dashboard = () => {
       <main className="relative container mx-auto px-4 py-8">
         <div className="space-y-6 animate-fade-in">
           <MonitoringConfig />
+          <NotificationChannels />
           <ScanStatus />
           <AlertHistory />
           <N8nIntegration />

@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ExternalLink, Shield, Brain, ChevronDown, ChevronUp, Loader2, Lightbulb, ShieldCheck } from "lucide-react";
+import { AlertCircle, ExternalLink, Shield, Brain, ChevronDown, ChevronUp, Loader2, Lightbulb, ShieldCheck, Send } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ export const AlertHistory = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
@@ -75,6 +76,31 @@ export const AlertHistory = () => {
     }
 
     setAnalyzingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(alertId);
+      return next;
+    });
+  };
+
+  const sendAlert = async (alertId: string) => {
+    setSendingIds((prev) => new Set(prev).add(alertId));
+    try {
+      const { data, error } = await supabase.functions.invoke("send-notification", {
+        body: { alertId },
+      });
+      if (error) throw error;
+      toast({
+        title: "Notifications Sent",
+        description: `Sent to ${data.sent}/${data.total} channels.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Send Failed",
+        description: error.message || "Could not send notifications.",
+        variant: "destructive",
+      });
+    }
+    setSendingIds((prev) => {
       const next = new Set(prev);
       next.delete(alertId);
       return next;
@@ -201,6 +227,19 @@ export const AlertHistory = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-xs bg-accent/5 hover:bg-accent/15 border-accent/20 text-accent"
+                            onClick={(e) => { e.stopPropagation(); sendAlert(alert.id); }}
+                            disabled={sendingIds.has(alert.id)}
+                          >
+                            {sendingIds.has(alert.id) ? (
+                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending...</>
+                            ) : (
+                              <><Send className="w-3.5 h-3.5" /> Send</>
+                            )}
+                          </Button>
                           {alert.source_url && (
                             <Button variant="ghost" size="sm" asChild className="hover:bg-primary/10">
                               <a href={alert.source_url} target="_blank" rel="noopener noreferrer">

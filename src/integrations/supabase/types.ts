@@ -130,6 +130,39 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_channels: {
+        Row: {
+          channel_type: string
+          config: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_type: string
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_type?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       scan_history: {
         Row: {
           alerts_found: number

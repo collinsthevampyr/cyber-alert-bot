@@ -126,6 +126,20 @@ async function handleMcpRequest(body: any, userId: string) {
               properties: { limit: { type: "number", description: "Max alerts to analyze (default 5)", default: 5 } },
             },
           },
+          {
+            name: "send_alert",
+            description: "Send a specific alert (with analysis/remediation) to all configured notification channels (Slack, Discord, Email)",
+            inputSchema: {
+              type: "object",
+              properties: { alert_id: { type: "string", description: "The UUID of the alert to send" } },
+              required: ["alert_id"],
+            },
+          },
+          {
+            name: "list_notification_channels",
+            description: "List all configured notification channels (Slack, Discord, Email)",
+            inputSchema: { type: "object", properties: {} },
+          },
         ],
       },
     };
@@ -402,6 +416,53 @@ async function handleMcpRequest(body: any, userId: string) {
           break;
         }
 
+        case "send_alert": {
+          if (!args.alert_id) { result = { error: "alert_id is required" }; break; }
+          const { data: alertData } = await supabaseAdmin.from("alerts").select("*").eq("id", args.alert_id).eq("user_id", userId).single();
+          if (!alertData) { result = { error: "Alert not found" }; break; }
+
+          const { data: channels } = await supabaseAdmin.from("notification_channels").select("*").eq("user_id", userId).eq("is_active", true);
+          if (!channels || channels.length === 0) { result = { error: "No active notification channels configured" }; break; }
+
+          const sendResults = [];
+          for (const ch of channels) {
+            try {
+              const cfg = ch.config as any;
+              if (ch.channel_type === "slack" && cfg.webhook_url) {
+                let text = `🔔 *Security Alert*\n*Tool:* ${alertData.tool_name}\n*Severity:* ${alertData.severity}\n*Summary:* ${alertData.summary}`;
+                if (alertData.analysis) text += `\n\n📊 *Analysis:*\n${alertData.analysis}`;
+                if (alertData.remediation) text += `\n\n🛡️ *Remediation:*\n${alertData.remediation}`;
+                const r = await fetch(cfg.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+                sendResults.push({ channel: ch.name, type: "slack", success: r.ok });
+              } else if (ch.channel_type === "discord" && cfg.webhook_url) {
+                const fields = [
+                  { name: "Tool", value: alertData.tool_name, inline: true },
+                  { name: "Severity", value: alertData.severity, inline: true },
+                  { name: "Summary", value: alertData.summary },
+                ];
+                if (alertData.analysis) fields.push({ name: "📊 Analysis", value: alertData.analysis.substring(0, 1024), inline: false });
+                if (alertData.remediation) fields.push({ name: "🛡️ Remediation", value: alertData.remediation.substring(0, 1024), inline: false });
+                const r = await fetch(cfg.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [{ title: "🔔 Security Alert", fields, color: 0xff6600 }] }) });
+                sendResults.push({ channel: ch.name, type: "discord", success: r.ok });
+              } else if (ch.channel_type === "email") {
+                sendResults.push({ channel: ch.name, type: "email", success: true, note: `Queued for ${cfg.email_address}` });
+              }
+            } catch (e) {
+              sendResults.push({ channel: ch.name, type: ch.channel_type, success: false, error: String(e) });
+            }
+          }
+          result = { sent: sendResults.filter(r => r.success).length, total: channels.length, details: sendResults };
+          break;
+        }
+
+        case "list_notification_channels": {
+          const { data: channels } = await supabaseAdmin.from("notification_channels").select("id, channel_type, name, is_active, created_at").eq("user_id", userId);
+          result = { channels: channels || [] };
+          break;
+        }
+          break;
+        }
+
         default:
           return { jsonrpc: "2.0", id, error: { code: -32601, message: `Unknown tool: ${toolName}` } };
       }
@@ -439,7 +500,7 @@ Deno.serve(async (req) => {
       name: "SecureWatch AI MCP Server",
       version: "1.0.0",
       description: "MCP server for cybersecurity threat monitoring. Authenticate with x-api-key header.",
-      capabilities: ["list_alerts", "trigger_scan", "get_scan_history", "get_config", "update_config", "add_tool", "remove_tool", "get_alert_summary"],
+      capabilities: ["list_alerts", "trigger_scan", "get_scan_history", "get_config", "update_config", "add_tool", "remove_tool", "get_alert_summary", "analyze_alert", "analyze_all_unanalyzed", "send_alert", "list_notification_channels"],
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 

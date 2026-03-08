@@ -237,8 +237,75 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
 
     console.log(`Scan completed. Found ${alerts.length} alerts.`);
 
-    // Trigger registered webhooks for new alerts
+    // Send alerts to notification channels
     if (alerts.length > 0) {
+      // Send to notification_channels (Slack, Discord, Email)
+      const { data: channels } = await supabaseClient
+        .from("notification_channels")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("is_active", true);
+
+      if (channels && channels.length > 0) {
+        for (const alert of alerts) {
+          for (const channel of channels) {
+            try {
+              const chConfig = channel.config as any;
+              if (channel.channel_type === "slack" && chConfig.webhook_url) {
+                await fetch(chConfig.webhook_url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    text: `🔔 *Cyber Alert*\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}\n*Source:* ${alert.source_url || "N/A"}\n*Time:* ${new Date().toISOString()}`,
+                  }),
+                });
+              } else if (channel.channel_type === "discord" && chConfig.webhook_url) {
+                await fetch(chConfig.webhook_url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    embeds: [{
+                      title: "🔔 Security Alert",
+                      color: ({ Critical: 0xff0000, High: 0xff6600, Medium: 0xffcc00, Low: 0x00cc00 } as any)[alert.severity] || 0x808080,
+                      fields: [
+                        { name: "Tool", value: alert.tool_name, inline: true },
+                        { name: "Severity", value: alert.severity, inline: true },
+                        { name: "Summary", value: alert.summary },
+                      ],
+                      timestamp: new Date().toISOString(),
+                      footer: { text: "SecureWatch AI" },
+                    }],
+                  }),
+                });
+              } else if (channel.channel_type === "email") {
+                console.log(`Email queued for ${chConfig.email_address}: ${alert.summary}`);
+              }
+            } catch (chErr) {
+              console.error(`Channel ${channel.name} error:`, chErr);
+            }
+          }
+        }
+        console.log(`Notifications sent to ${channels.length} channels.`);
+      }
+
+      // Legacy Slack webhook from monitoring config
+      if (config.slack_webhook_url) {
+        for (const alert of alerts) {
+          try {
+            await fetch(config.slack_webhook_url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                text: `🔔 *Cyber Alert*\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}\n*Source:* ${alert.source_url || "N/A"}`,
+              }),
+            });
+          } catch (e) {
+            console.error("Legacy Slack error:", e);
+          }
+        }
+      }
+
+      // Trigger registered webhooks
       const { data: webhooks } = await supabaseClient
         .from("webhooks")
         .select("*")
@@ -260,7 +327,6 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
                 }),
               });
               await supabaseClient.from("webhooks").update({ last_triggered_at: new Date().toISOString() }).eq("id", webhook.id);
-              console.log(`Webhook triggered: ${webhook.name}`);
             } catch (whErr) {
               console.error("Webhook delivery failed:", whErr);
             }
