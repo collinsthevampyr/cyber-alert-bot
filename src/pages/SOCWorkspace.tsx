@@ -27,6 +27,7 @@ const SOCWorkspace = () => {
           <TabsTrigger value="sla" className="text-xs">SLA Tracking</TabsTrigger>
           <TabsTrigger value="response" className="text-xs">Response Actions</TabsTrigger>
           <TabsTrigger value="siem" className="text-xs">SIEM</TabsTrigger>
+          <TabsTrigger value="handover" className="text-xs">Handover</TabsTrigger>
         </TabsList>
 
         <TabsContent value="triage"><AlertTriage /></TabsContent>
