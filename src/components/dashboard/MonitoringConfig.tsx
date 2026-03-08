@@ -10,9 +10,29 @@ import { useToast } from "@/hooks/use-toast";
 import { Settings, X, Plus, PlayCircle, ExternalLink, CheckCircle, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+const SLACK_WEBHOOK_PATTERN = /^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
+const TOOL_NAME_PATTERN = /^[a-zA-Z0-9\s._\-/()]+$/;
+const MAX_TOOL_NAME_LENGTH = 100;
+const MAX_TOOLS = 50;
+
+const validateToolName = (name: string): string | null => {
+  if (!name.trim()) return "Tool name cannot be empty";
+  if (name.trim().length > MAX_TOOL_NAME_LENGTH) return `Tool name must be under ${MAX_TOOL_NAME_LENGTH} characters`;
+  if (!TOOL_NAME_PATTERN.test(name.trim())) return "Tool name can only contain letters, numbers, spaces, and . _ - / ( )";
+  return null;
+};
+
+const validateSlackWebhook = (url: string): string | null => {
+  if (!url) return null; // optional field
+  if (!SLACK_WEBHOOK_PATTERN.test(url)) return "Must be a valid Slack webhook URL (https://hooks.slack.com/services/...)";
+  return null;
+};
+
 export const MonitoringConfig = () => {
   const [tools, setTools] = useState<string[]>([]);
   const [newTool, setNewTool] = useState("");
+  const [toolError, setToolError] = useState<string | null>(null);
+  const [webhookError, setWebhookError] = useState<string | null>(null);
   const [slackWebhook, setSlackWebhook] = useState("");
   const [frequency, setFrequency] = useState("hourly");
   const [loading, setLoading] = useState(false);
@@ -42,17 +62,47 @@ export const MonitoringConfig = () => {
   };
 
   const addTool = () => {
-    if (newTool.trim() && !tools.includes(newTool.trim())) {
-      setTools([...tools, newTool.trim()]);
-      setNewTool("");
+    const trimmed = newTool.trim();
+    const error = validateToolName(trimmed);
+    if (error) {
+      setToolError(error);
+      return;
     }
+    if (tools.includes(trimmed)) {
+      setToolError("This tool is already added");
+      return;
+    }
+    if (tools.length >= MAX_TOOLS) {
+      setToolError(`Maximum ${MAX_TOOLS} tools allowed`);
+      return;
+    }
+    setToolError(null);
+    setTools([...tools, trimmed]);
+    setNewTool("");
   };
 
   const removeTool = (tool: string) => {
     setTools(tools.filter(t => t !== tool));
   };
 
+  const handleWebhookChange = (value: string) => {
+    setSlackWebhook(value);
+    if (value) {
+      setWebhookError(validateSlackWebhook(value));
+    } else {
+      setWebhookError(null);
+    }
+  };
+
   const saveConfig = async () => {
+    // Validate webhook before saving
+    const whError = validateSlackWebhook(slackWebhook);
+    if (whError) {
+      setWebhookError(whError);
+      toast({ title: "Validation Error", description: whError, variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -62,22 +112,15 @@ export const MonitoringConfig = () => {
       .upsert({
         user_id: user.id,
         tools_list: tools,
-        slack_webhook_url: slackWebhook,
+        slack_webhook_url: slackWebhook || null,
         scan_frequency: frequency,
         is_active: true,
       });
 
     if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      toast({
-        title: "Success",
-        description: "Configuration saved successfully",
-      });
+      toast({ title: "Success", description: "Configuration saved successfully" });
     }
 
     setLoading(false);
@@ -187,9 +230,10 @@ export const MonitoringConfig = () => {
             <Input
               placeholder="e.g., WordPress, AWS, Splunk"
               value={newTool}
-              onChange={(e) => setNewTool(e.target.value)}
+              onChange={(e) => { setNewTool(e.target.value); setToolError(null); }}
               onKeyPress={(e) => e.key === "Enter" && addTool()}
-              className="transition-all focus:ring-2 focus:ring-primary/20"
+              className={`transition-all focus:ring-2 focus:ring-primary/20 ${toolError ? 'border-destructive' : ''}`}
+              maxLength={MAX_TOOL_NAME_LENGTH}
             />
             <Button 
               onClick={addTool} 
@@ -199,6 +243,8 @@ export const MonitoringConfig = () => {
               <Plus className="w-4 h-4" />
             </Button>
           </div>
+          {toolError && <p className="text-sm text-destructive">{toolError}</p>}
+          <p className="text-xs text-muted-foreground">{tools.length}/{MAX_TOOLS} tools added</p>
           <div className="flex flex-wrap gap-2 mt-3 min-h-[40px]">
             {tools.map((tool, index) => (
               <Badge 
@@ -253,11 +299,12 @@ export const MonitoringConfig = () => {
             <Input
               id="webhook"
               type="url"
-              placeholder="https://hooks.slack.com/services/..."
+              placeholder="https://hooks.slack.com/services/T.../B.../xxx"
               value={slackWebhook}
-              onChange={(e) => setSlackWebhook(e.target.value)}
-              className="transition-all focus:ring-2 focus:ring-primary/20"
+              onChange={(e) => handleWebhookChange(e.target.value)}
+              className={`transition-all focus:ring-2 focus:ring-primary/20 ${webhookError ? 'border-destructive' : ''}`}
             />
+            {webhookError && <p className="text-sm text-destructive">{webhookError}</p>}
           </div>
 
           {slackWebhook && (
