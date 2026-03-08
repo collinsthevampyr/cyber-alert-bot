@@ -323,7 +323,35 @@ serve(async (req) => {
       return jsonResponse({ success: true });
     }
 
-    return errorResponse("Not found. Available endpoints: /alerts, /scans, /scans/trigger, /config, /webhooks", 404);
+    // ===== NOTIFICATION CHANNELS =====
+    if (path.endsWith("/notification-channels") && req.method === "GET") {
+      const { data } = await supabaseAdmin
+        .from("notification_channels")
+        .select("id, channel_type, name, is_active, created_at")
+        .eq("user_id", userId);
+      return jsonResponse({ channels: data || [] });
+    }
+
+    // ===== SEND ALERT TO CHANNELS =====
+    if (path.includes("/alerts/") && path.endsWith("/send") && req.method === "POST") {
+      const parts = path.split("/");
+      const alertIdx = parts.indexOf("alerts");
+      const alertId = parts[alertIdx + 1];
+
+      const sendUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-notification`;
+      const resp = await fetch(sendUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": req.headers.get("x-api-key") || "",
+        },
+        body: JSON.stringify({ alertId }),
+      });
+      const data = await resp.json();
+      return jsonResponse(data, resp.status);
+    }
+
+    return errorResponse("Not found. Available endpoints: /alerts, /alerts/:id/analyze, /alerts/:id/send, /scans, /scans/trigger, /config, /webhooks, /notification-channels", 404);
   } catch (error) {
     console.error("API error:", error);
     return errorResponse(error instanceof Error ? error.message : "Internal server error", 500);
