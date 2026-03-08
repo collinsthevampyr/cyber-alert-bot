@@ -2,3 +2,9 @@ project_id = "udqbuzzzmrneqsfybkrj"
 
 [functions.scan-threats]
 verify_jwt = false
+
+[functions.api]
+verify_jwt = false
+
+[functions.mcp-server]
+verify_jwt = false
