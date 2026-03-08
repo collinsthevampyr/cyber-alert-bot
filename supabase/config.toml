@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.siem-ingest]
 verify_jwt = false
+
+[functions.enrich-ioc]
+verify_jwt = false

@@ -47,34 +47,20 @@ export const IOCEnrichment = () => {
   const enrichIOC = async (ioc: any) => {
     setEnriching(p => new Set(p).add(ioc.id));
     try {
-      const { data, error } = await supabase.functions.invoke("analyze-alert", {
+      const { data, error } = await supabase.functions.invoke("enrich-ioc", {
         body: {
-          alertId: ioc.alert_id,
-          customPrompt: `Analyze this indicator of compromise (IOC) and provide threat intelligence enrichment:
-Type: ${ioc.ioc_type}
-Value: ${ioc.ioc_value}
-
-Provide: reputation score (malicious/suspicious/clean/unknown), known associations, geographic data if IP, WHOIS data if domain, malware families if hash. Return JSON: {"reputation": "malicious|suspicious|clean|unknown", "details": "...", "risk_score": 0-100}`,
+          iocId: ioc.id,
+          iocType: ioc.ioc_type,
+          iocValue: ioc.ioc_value,
         },
       });
 
-      let enrichmentData = {};
-      let reputation = "unknown";
-      try {
-        const parsed = JSON.parse(data?.analysis || "{}");
-        enrichmentData = parsed;
-        reputation = parsed.reputation || "unknown";
-      } catch {
-        enrichmentData = { raw: data?.analysis };
-      }
+      if (error) throw error;
 
-      await supabase.from("iocs").update({
-        enrichment_data: enrichmentData,
-        enriched_at: new Date().toISOString(),
-        reputation,
-      }).eq("id", ioc.id);
-
-      toast({ title: "IOC enriched" });
+      toast({
+        title: "IOC enriched",
+        description: `Sources: ${data?.sources?.join(", ") || "AI"} · Reputation: ${data?.reputation || "unknown"}`,
+      });
       load();
     } catch (e: any) {
       toast({ title: "Enrichment failed", description: e.message, variant: "destructive" });
