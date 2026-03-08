@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Key, Webhook, Plus, Trash2, Copy, Eye, EyeOff, ExternalLink, Zap, Code, AlertCircle } from "lucide-react";
+import { Key, Webhook, Plus, Trash2, Copy, Eye, EyeOff, ExternalLink, Zap, Code, AlertCircle, TestTube, Loader2, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const N8nIntegration = () => {
