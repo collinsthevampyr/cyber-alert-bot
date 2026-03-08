@@ -6,9 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Loader2, Mail, Lock } from "lucide-react";
+import { Shield, Loader2, Mail, Lock, Building2, UserCircle } from "lucide-react";
+
+type AccountType = "individual" | "organization" | null;
 
 const Login = () => {
+  const [accountType, setAccountType] = useState<AccountType>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,7 +35,7 @@ const Login = () => {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      toast({ title: "Email required", description: "Enter your work email address.", variant: "destructive" });
+      toast({ title: "Email required", description: "Enter your email address.", variant: "destructive" });
       return;
     }
     setResetLoading(true);
@@ -48,6 +51,8 @@ const Login = () => {
     setResetLoading(false);
   };
 
+  const isOrg = accountType === "organization";
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <div className="w-full max-w-sm">
@@ -58,19 +63,27 @@ const Login = () => {
 
         <Card className="border-border">
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl">{resetMode ? "Reset your password" : "Sign in to your account"}</CardTitle>
+            <CardTitle className="text-xl">
+              {resetMode ? "Reset your password" : !accountType ? "Sign in" : "Sign in"}
+            </CardTitle>
             <CardDescription>
-              {resetMode ? "Enter your work email to receive a reset link" : "Access your organization's threat dashboard"}
+              {resetMode
+                ? "Enter your email to receive a reset link"
+                : !accountType
+                  ? "Choose your account type to continue"
+                  : isOrg
+                    ? "Access your organization's threat dashboard"
+                    : "Access your personal threat dashboard"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {resetMode ? (
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="reset-email">Work email</Label>
+                  <Label htmlFor="reset-email">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input id="reset-email" type="email" placeholder="jane@acme.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="pl-9" />
+                    <Input id="reset-email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="pl-9" />
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={resetLoading}>
@@ -80,14 +93,62 @@ const Login = () => {
                   Back to sign in
                 </Button>
               </form>
+            ) : !accountType ? (
+              <div className="space-y-3">
+                <button
+                  onClick={() => setAccountType("individual")}
+                  className="w-full flex items-start gap-4 p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary/50 transition-colors text-left group"
+                >
+                  <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                    <UserCircle className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-foreground">Individual</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Personal account for independent users</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setAccountType("organization")}
+                  className="w-full flex items-start gap-4 p-4 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary/50 transition-colors text-left group"
+                >
+                  <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                    <Building2 className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm text-foreground">Organization</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Team or company account</p>
+                  </div>
+                </button>
+
+                <p className="mt-4 text-center text-sm text-muted-foreground">
+                  New to SecureWatch?{" "}
+                  <button onClick={() => navigate("/signup")} className="text-foreground hover:text-primary transition-colors underline-offset-4 hover:underline">
+                    Create an account
+                  </button>
+                </p>
+              </div>
             ) : (
               <>
                 <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                    <button type="button" onClick={() => setAccountType(null)} className="hover:text-foreground transition-colors">
+                      ← Back
+                    </button>
+                    <span className="text-border">|</span>
+                    <span className="flex items-center gap-1.5">
+                      {isOrg
+                        ? <><Building2 className="w-3.5 h-3.5" /> Organization</>
+                        : <><UserCircle className="w-3.5 h-3.5" /> Individual</>
+                      }
+                    </span>
+                  </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="email">Work email</Label>
+                    <Label htmlFor="email">{isOrg ? "Work email" : "Email"}</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input id="email" type="email" placeholder="jane@acme.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="pl-9" />
+                      <Input id="email" type="email" placeholder={isOrg ? "jane@acme.com" : "you@example.com"} value={email} onChange={(e) => setEmail(e.target.value)} required className="pl-9" />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -109,7 +170,7 @@ const Login = () => {
                 <p className="mt-4 text-center text-sm text-muted-foreground">
                   New to SecureWatch?{" "}
                   <button onClick={() => navigate("/signup")} className="text-foreground hover:text-primary transition-colors underline-offset-4 hover:underline">
-                    Create an organization account
+                    Create an account
                   </button>
                 </p>
               </>
