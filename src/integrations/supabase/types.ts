@@ -61,6 +61,36 @@ export type Database = {
           },
         ]
       }
+      api_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_used_at: string | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          name?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       monitoring_config: {
         Row: {
           created_at: string
@@ -127,12 +157,49 @@ export type Database = {
         }
         Relationships: []
       }
+      webhooks: {
+        Row: {
+          created_at: string
+          events: string[]
+          id: string
+          is_active: boolean
+          last_triggered_at: string | null
+          name: string
+          secret: string | null
+          url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          events?: string[]
+          id?: string
+          is_active?: boolean
+          last_triggered_at?: string | null
+          name?: string
+          secret?: string | null
+          url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          events?: string[]
+          id?: string
+          is_active?: boolean
+          last_triggered_at?: string | null
+          name?: string
+          secret?: string | null
+          url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      touch_api_key: { Args: { p_api_key: string }; Returns: undefined }
+      validate_api_key: { Args: { p_api_key: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
