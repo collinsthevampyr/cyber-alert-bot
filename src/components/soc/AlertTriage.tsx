@@ -128,11 +128,6 @@ export const AlertTriage = () => {
     return opt?.color || "text-muted-foreground";
   };
 
-  const counts = {
-    open: alerts.filter(a => a.status === "open").length,
-    acknowledged: alerts.filter(a => a.status === "acknowledged").length,
-    investigating: alerts.filter(a => a.status === "investigating").length,
-  };
 
   return (
     <div className="space-y-4">
