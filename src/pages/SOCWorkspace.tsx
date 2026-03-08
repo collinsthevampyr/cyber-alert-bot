@@ -7,6 +7,7 @@ import { EscalationRules } from "@/components/soc/EscalationRules";
 import { SLADashboard } from "@/components/soc/SLADashboard";
 import { ResponseActions } from "@/components/soc/ResponseActions";
 import { SIEMIntegrations } from "@/components/soc/SIEMIntegrations";
+import { ShiftHandover } from "@/components/soc/ShiftHandover";
 
 const SOCWorkspace = () => {
   return (
