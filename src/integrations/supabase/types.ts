@@ -163,6 +163,36 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          job_title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          job_title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          job_title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       scan_history: {
         Row: {
           alerts_found: number
