@@ -291,6 +291,7 @@ export const N8nIntegration = () => {
                 <div className="space-y-2">
                   {[
                     { method: "GET", path: "/alerts", desc: "List alerts (query: severity, tool_name, limit, offset)" },
+                    { method: "POST", path: "/alerts/:id/analyze", desc: "AI-analyze an alert — returns expert analysis & remediation steps" },
                     { method: "GET", path: "/scans", desc: "Get scan history" },
                     { method: "POST", path: "/scans/trigger", desc: "Trigger a new security scan" },
                     { method: "GET", path: "/config", desc: "Get monitoring configuration" },
