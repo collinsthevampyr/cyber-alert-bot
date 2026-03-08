@@ -299,11 +299,12 @@ export const MonitoringConfig = () => {
             <Input
               id="webhook"
               type="url"
-              placeholder="https://hooks.slack.com/services/..."
+              placeholder="https://hooks.slack.com/services/T.../B.../xxx"
               value={slackWebhook}
-              onChange={(e) => setSlackWebhook(e.target.value)}
-              className="transition-all focus:ring-2 focus:ring-primary/20"
+              onChange={(e) => handleWebhookChange(e.target.value)}
+              className={`transition-all focus:ring-2 focus:ring-primary/20 ${webhookError ? 'border-destructive' : ''}`}
             />
+            {webhookError && <p className="text-sm text-destructive">{webhookError}</p>}
           </div>
 
           {slackWebhook && (
