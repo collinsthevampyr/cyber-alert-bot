@@ -217,7 +217,7 @@ export const AlertTriage = () => {
                         </Select>
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setSelectedAlert(alert); loadNotes(alert.id); }}>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setSelectedAlert(alert); loadNotes(alert.id); loadEvidence(alert.id); }}>
                               <MessageSquare className="w-3.5 h-3.5" />
                             </Button>
                           </DialogTrigger>
