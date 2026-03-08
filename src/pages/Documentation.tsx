@@ -245,7 +245,6 @@ const Documentation = () => {
             <Card>
               <CardContent className="p-6">{active?.content}</CardContent>
             </Card>
-          </div>
         </div>
       </div>
     </div>
