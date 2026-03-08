@@ -78,6 +78,7 @@ const Dashboard = () => {
       <main className="relative container mx-auto px-4 py-8">
         <div className="space-y-6 animate-fade-in">
           <MonitoringConfig />
+          <NotificationChannels />
           <ScanStatus />
           <AlertHistory />
           <N8nIntegration />
