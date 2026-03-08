@@ -95,6 +95,14 @@ export const MonitoringConfig = () => {
   };
 
   const saveConfig = async () => {
+    // Validate webhook before saving
+    const whError = validateSlackWebhook(slackWebhook);
+    if (whError) {
+      setWebhookError(whError);
+      toast({ title: "Validation Error", description: whError, variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -104,22 +112,15 @@ export const MonitoringConfig = () => {
       .upsert({
         user_id: user.id,
         tools_list: tools,
-        slack_webhook_url: slackWebhook,
+        slack_webhook_url: slackWebhook || null,
         scan_frequency: frequency,
         is_active: true,
       });
 
     if (error) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      toast({
-        title: "Success",
-        description: "Configuration saved successfully",
-      });
+      toast({ title: "Success", description: "Configuration saved successfully" });
     }
 
     setLoading(false);
