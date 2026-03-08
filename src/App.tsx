@@ -13,6 +13,7 @@ import Settings from "./pages/Settings";
 import Support from "./pages/Support";
 import AdminDashboard from "./pages/AdminDashboard";
 import ResetPassword from "./pages/ResetPassword";
+import SOCWorkspace from "./pages/SOCWorkspace";
 import NotFound from "./pages/NotFound";
 import AppLayout from "./components/AppLayout";
 
