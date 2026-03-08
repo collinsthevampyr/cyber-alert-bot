@@ -29,6 +29,7 @@ const SOCWorkspace = () => {
           <TabsTrigger value="response" className="text-xs">Response Actions</TabsTrigger>
           <TabsTrigger value="siem" className="text-xs">SIEM</TabsTrigger>
           <TabsTrigger value="handover" className="text-xs">Handover</TabsTrigger>
+          <TabsTrigger value="metrics" className="text-xs">Metrics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="triage"><AlertTriage /></TabsContent>
