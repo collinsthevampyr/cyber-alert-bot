@@ -26,6 +26,7 @@ const STATUS_OPTIONS = [
 
 export const AlertTriage = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [allCounts, setAllCounts] = useState({ open: 0, acknowledged: 0, investigating: 0, total: 0 });
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("open");
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
@@ -40,10 +41,25 @@ export const AlertTriage = () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Load filtered alerts
     let q = supabase.from("alerts").select("*").eq("user_id", user.id).order("detected_at", { ascending: false }).limit(100);
     if (statusFilter !== "all") q = q.eq("status", statusFilter);
-    const { data } = await q;
-    setAlerts(data || []);
+
+    // Load all alerts for global counts
+    const [filtered, all] = await Promise.all([
+      q,
+      supabase.from("alerts").select("id, status").eq("user_id", user.id),
+    ]);
+
+    setAlerts(filtered.data || []);
+    const allAlerts = all.data || [];
+    setAllCounts({
+      open: allAlerts.filter(a => a.status === "open").length,
+      acknowledged: allAlerts.filter(a => a.status === "acknowledged").length,
+      investigating: allAlerts.filter(a => a.status === "investigating").length,
+      total: allAlerts.length,
+    });
     setLoading(false);
   };
 
@@ -112,25 +128,20 @@ export const AlertTriage = () => {
     return opt?.color || "text-muted-foreground";
   };
 
-  const counts = {
-    open: alerts.filter(a => a.status === "open").length,
-    acknowledged: alerts.filter(a => a.status === "acknowledged").length,
-    investigating: alerts.filter(a => a.status === "investigating").length,
-  };
 
   return (
     <div className="space-y-4">
       {/* Status summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Open", count: counts.open, color: "text-warning" },
-          { label: "Acknowledged", count: counts.acknowledged, color: "text-info" },
-          { label: "Investigating", count: counts.investigating, color: "text-primary" },
-          { label: "Total", count: alerts.length, color: "text-foreground" },
+          { label: "Open", count: allCounts.open, color: "text-orange-400" },
+          { label: "Acknowledged", count: allCounts.acknowledged, color: "text-blue-400" },
+          { label: "Investigating", count: allCounts.investigating, color: "text-primary" },
+          { label: "Total", count: allCounts.total, color: "text-foreground" },
         ].map(s => (
           <Card key={s.label}>
             <CardContent className="p-3 text-center">
-              <p className={`text-2xl font-bold ${s.color}`}>{statusFilter === "all" || s.label === "Total" ? s.count : "—"}</p>
+              <p className={`text-2xl font-bold ${s.color}`}>{s.count}</p>
               <p className="text-xs text-muted-foreground">{s.label}</p>
             </CardContent>
           </Card>
