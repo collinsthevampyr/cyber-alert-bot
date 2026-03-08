@@ -139,6 +139,29 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
 
           if (result.hasThreats && result.threats?.length) {
             for (const threat of result.threats) {
+              // Check suppression rules before inserting
+              const shouldSuppress = await checkSuppression(supabase, config.user_id, tool, threat);
+              if (shouldSuppress) {
+                console.log(`Suppressed alert for ${tool}: ${threat.summary?.substring(0, 50)}`);
+                continue;
+              }
+
+              // Check for duplicate alerts (same tool + similar summary in last 24h)
+              const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+              const { data: existing } = await supabase
+                .from("alerts")
+                .select("id")
+                .eq("user_id", config.user_id)
+                .eq("tool_name", tool)
+                .eq("summary", (threat.summary || "Security threat detected").substring(0, 200))
+                .gte("detected_at", oneDayAgo)
+                .limit(1);
+
+              if (existing?.length) {
+                console.log(`Duplicate suppressed for ${tool}: ${threat.summary?.substring(0, 50)}`);
+                continue;
+              }
+
               const { data: alert, error: alertErr } = await supabase
                 .from("alerts")
                 .insert({
