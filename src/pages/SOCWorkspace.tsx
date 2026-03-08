@@ -8,6 +8,7 @@ import { SLADashboard } from "@/components/soc/SLADashboard";
 import { ResponseActions } from "@/components/soc/ResponseActions";
 import { SIEMIntegrations } from "@/components/soc/SIEMIntegrations";
 import { ShiftHandover } from "@/components/soc/ShiftHandover";
+import { SOCMetrics } from "@/components/soc/SOCMetrics";
 
 const SOCWorkspace = () => {
   return (
@@ -28,6 +29,7 @@ const SOCWorkspace = () => {
           <TabsTrigger value="response" className="text-xs">Response Actions</TabsTrigger>
           <TabsTrigger value="siem" className="text-xs">SIEM</TabsTrigger>
           <TabsTrigger value="handover" className="text-xs">Handover</TabsTrigger>
+          <TabsTrigger value="metrics" className="text-xs">Metrics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="triage"><AlertTriage /></TabsContent>
@@ -39,6 +41,7 @@ const SOCWorkspace = () => {
         <TabsContent value="response"><ResponseActions /></TabsContent>
         <TabsContent value="siem"><SIEMIntegrations /></TabsContent>
         <TabsContent value="handover"><ShiftHandover /></TabsContent>
+        <TabsContent value="metrics"><SOCMetrics /></TabsContent>
       </Tabs>
     </div>
   );

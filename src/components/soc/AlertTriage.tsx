@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import {
   AlertCircle, CheckCircle, Eye, EyeOff, Clock, UserCheck, XCircle,
   MessageSquare, Shield, Loader2, ChevronRight
 } from "lucide-react";
+import { EvidenceUploader } from "./EvidenceUploader";
 
 const STATUS_OPTIONS = [
   { value: "open", label: "Open", icon: AlertCircle, color: "text-warning" },
@@ -32,6 +33,7 @@ export const AlertTriage = () => {
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
   const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<any[]>([]);
+  const [evidence, setEvidence] = useState<any[]>([]);
   const [savingNote, setSavingNote] = useState(false);
   const { toast } = useToast();
 
@@ -74,6 +76,11 @@ export const AlertTriage = () => {
     const { data } = await supabase.from("case_notes").select("*").eq("alert_id", alertId).order("created_at", { ascending: true });
     setNotes(data || []);
   };
+
+  const loadEvidence = useCallback(async (alertId: string) => {
+    const { data } = await supabase.from("evidence_attachments").select("*").eq("alert_id", alertId).order("created_at", { ascending: false });
+    setEvidence(data || []);
+  }, []);
 
   const updateStatus = async (alertId: string, status: string) => {
     const updates: any = { status };
@@ -210,7 +217,7 @@ export const AlertTriage = () => {
                         </Select>
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setSelectedAlert(alert); loadNotes(alert.id); }}>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setSelectedAlert(alert); loadNotes(alert.id); loadEvidence(alert.id); }}>
                               <MessageSquare className="w-3.5 h-3.5" />
                             </Button>
                           </DialogTrigger>
@@ -246,6 +253,12 @@ export const AlertTriage = () => {
                                   {savingNote ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null} Add Note
                                 </Button>
                               </div>
+                              <Separator />
+                              <EvidenceUploader
+                                alertId={alert.id}
+                                attachments={evidence}
+                                onRefresh={() => loadEvidence(alert.id)}
+                              />
                             </div>
                           </DialogContent>
                         </Dialog>

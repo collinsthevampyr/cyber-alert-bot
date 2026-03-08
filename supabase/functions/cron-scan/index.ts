@@ -48,6 +48,70 @@ async function checkSuppression(supabase: any, userId: string, toolName: string,
   return false;
 }
 
+// Auto-correlate related alerts into incidents
+async function autoCorrelateAlerts(supabase: any, userId: string, newAlerts: any[]) {
+  try {
+    // Group by tool_name + severity
+    const groups: Record<string, any[]> = {};
+    for (const alert of newAlerts) {
+      const key = `${alert.tool_name}::${alert.severity}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(alert);
+    }
+
+    for (const [key, groupAlerts] of Object.entries(groups)) {
+      if (groupAlerts.length < 2) continue;
+
+      const [toolName, severity] = key.split("::");
+
+      // Check if there's already an open incident for this tool+severity
+      const { data: existingIncident } = await supabase
+        .from("incidents")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("status", "open")
+        .ilike("title", `%${toolName}%`)
+        .limit(1);
+
+      let incidentId: string;
+
+      if (existingIncident?.length) {
+        incidentId = existingIncident[0].id;
+      } else {
+        const { data: newIncident } = await supabase
+          .from("incidents")
+          .insert({
+            user_id: userId,
+            title: `Correlated: ${groupAlerts.length} ${severity} alerts for ${toolName}`,
+            description: `Auto-correlated incident grouping ${groupAlerts.length} related ${severity}-severity alerts detected for ${toolName}.`,
+            severity,
+            status: "open",
+          })
+          .select()
+          .single();
+
+        if (!newIncident) continue;
+        incidentId = newIncident.id;
+
+        await supabase.from("case_notes").insert({
+          incident_id: incidentId,
+          user_id: userId,
+          content: `🔗 Auto-correlated ${groupAlerts.length} alerts for ${toolName} (${severity} severity) into this incident.`,
+          note_type: "correlation",
+        });
+      }
+
+      for (const alert of groupAlerts) {
+        await supabase.from("alerts").update({ incident_id: incidentId }).eq("id", alert.id);
+      }
+
+      console.log(`🔗 Correlated ${groupAlerts.length} alerts → incident ${incidentId}`);
+    }
+  } catch (e) {
+    console.error("Auto-correlation error:", e);
+  }
+}
+
 // Maps frequency config to minutes
 const FREQUENCY_MINUTES: Record<string, number> = {
   "15min": 15,
@@ -231,6 +295,11 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
         scan_completed_at: new Date().toISOString(),
         alerts_found: alerts.length,
       }).eq("id", scan.id);
+
+      // Auto-correlate alerts into incidents
+      if (alerts.length >= 2) {
+        await autoCorrelateAlerts(supabase, config.user_id, alerts);
+      }
 
       // Send notifications if alerts found
       if (alerts.length > 0) {
