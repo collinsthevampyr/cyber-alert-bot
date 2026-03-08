@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,15 +9,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAdmin } from "@/hooks/use-admin";
 import { useNavigate } from "react-router-dom";
 import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from "recharts";
+import {
   Users, AlertTriangle, ScanLine, TicketCheck, TrendingUp,
-  Shield, ShieldCheck, Search, Loader2, Send, Mail, Trash2,
-  UserPlus, ChevronRight, Clock, Building2, Edit3, Save, X
+  Shield, ShieldCheck, Search, Loader2, Send, Trash2,
+  UserPlus, ChevronRight, Building2, Edit3, Save, X,
+  Activity, BarChart3, Heart, UsersRound, RefreshCw,
+  FileText, Clock, CheckCircle2, XCircle, Zap, Database,
+  Bell, Key, Webhook, Settings2, Download
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+
+const CHART_COLORS = [
+  "hsl(168, 72%, 51%)", // primary
+  "hsl(36, 77%, 49%)",  // warning
+  "hsl(0, 72%, 51%)",   // destructive
+  "hsl(210, 70%, 55%)", // info
+  "hsl(152, 60%, 42%)", // success
+  "hsl(280, 60%, 55%)", // purple accent
+];
 
 const AdminDashboard = () => {
   const { isAdmin, loading: adminLoading } = useAdmin();
@@ -25,11 +42,13 @@ const AdminDashboard = () => {
   const { toast } = useToast();
 
   const [stats, setStats] = useState<any>(null);
+  const [health, setHealth] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([]);
   const [siteContent, setSiteContent] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
+  const [auditLog, setAuditLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchUsers, setSearchUsers] = useState("");
   const [searchTickets, setSearchTickets] = useState("");
@@ -42,6 +61,8 @@ const AdminDashboard = () => {
   const [newRoleEmail, setNewRoleEmail] = useState("");
   const [newRole, setNewRole] = useState<string>("admin");
   const [addingRole, setAddingRole] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState("");
 
   useEffect(() => {
     if (!adminLoading && !isAdmin) navigate("/dashboard");
@@ -53,7 +74,7 @@ const AdminDashboard = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    await Promise.all([loadStats(), loadUsers(), loadTickets(), loadAlerts(), loadContent(), loadRoles()]);
+    await Promise.all([loadStats(), loadHealth(), loadAnalytics(), loadUsers(), loadTickets(), loadContent(), loadRoles(), loadAuditLog()]);
     setLoading(false);
   };
 
@@ -61,30 +82,45 @@ const AdminDashboard = () => {
     const { data } = await supabase.rpc("admin_get_stats");
     setStats(data);
   };
-
+  const loadHealth = async () => {
+    const { data } = await supabase.rpc("admin_get_system_health");
+    setHealth(data);
+  };
+  const loadAnalytics = async () => {
+    const { data } = await supabase.rpc("admin_get_analytics");
+    setAnalytics(data);
+  };
   const loadUsers = async () => {
     const { data } = await supabase.rpc("admin_list_users");
     setUsers(data || []);
   };
-
   const loadTickets = async () => {
     const { data } = await supabase.from("support_tickets").select("*").order("created_at", { ascending: false });
     setTickets(data || []);
   };
-
-  const loadAlerts = async () => {
-    const { data } = await supabase.from("alerts").select("*").order("created_at", { ascending: false }).limit(100);
-    setAlerts(data || []);
-  };
-
   const loadContent = async () => {
     const { data } = await supabase.from("site_content").select("*").order("content_key");
     setSiteContent(data || []);
   };
-
   const loadRoles = async () => {
     const { data } = await supabase.from("user_roles").select("*");
     setRoles(data || []);
+  };
+  const loadAuditLog = async () => {
+    const { data } = await supabase.from("admin_audit_log").select("*").order("created_at", { ascending: false }).limit(200);
+    setAuditLog(data || []);
+  };
+
+  const logAction = async (action: string, target_type: string, target_id?: string, details?: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("admin_audit_log").insert({
+      admin_id: user.id,
+      action,
+      target_type,
+      target_id: target_id || null,
+      details: details || {},
+    });
   };
 
   const respondToTicket = async () => {
@@ -98,13 +134,22 @@ const AdminDashboard = () => {
       status: "resolved",
     }).eq("id", selectedTicket.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: "Response sent" }); setResponseText(""); loadTickets(); setSelectedTicket(null); }
+    else {
+      await logAction("respond_ticket", "support_ticket", selectedTicket.id, { subject: selectedTicket.subject });
+      toast({ title: "Response sent" });
+      setResponseText("");
+      loadTickets();
+      loadAuditLog();
+      setSelectedTicket(null);
+    }
     setResponding(false);
   };
 
   const updateTicketStatus = async (ticketId: string, status: string) => {
     await supabase.from("support_tickets").update({ status }).eq("id", ticketId);
+    await logAction("update_ticket_status", "support_ticket", ticketId, { status });
     loadTickets();
+    loadAuditLog();
   };
 
   const saveContent = async (key: string) => {
@@ -116,9 +161,11 @@ const AdminDashboard = () => {
     } else {
       await supabase.from("site_content").insert({ content_key: key, content_value: editValue, updated_by: user?.id });
     }
+    await logAction("edit_content", "site_content", key, { new_value: editValue.slice(0, 100) });
     toast({ title: "Content saved" });
     setEditingContent(null);
     loadContent();
+    loadAuditLog();
     setSavingContent(false);
   };
 
@@ -129,18 +176,74 @@ const AdminDashboard = () => {
     if (!foundUser) { toast({ title: "User not found", description: "That email isn't registered.", variant: "destructive" }); setAddingRole(false); return; }
     const { error } = await supabase.from("user_roles").insert({ user_id: foundUser.id, role: newRole as any });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: "Role assigned" }); setNewRoleEmail(""); loadRoles(); }
+    else {
+      await logAction("assign_role", "user_role", foundUser.id, { email: newRoleEmail, role: newRole });
+      toast({ title: "Role assigned" });
+      setNewRoleEmail("");
+      loadRoles();
+      loadAuditLog();
+    }
     setAddingRole(false);
   };
 
-  const removeRole = async (roleId: string) => {
+  const removeRole = async (roleId: string, userId: string) => {
     await supabase.from("user_roles").delete().eq("id", roleId);
+    await logAction("remove_role", "user_role", userId, { role_id: roleId });
     toast({ title: "Role removed" });
     loadRoles();
+    loadAuditLog();
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const selectAllUsers = () => {
+    if (selectedUserIds.size === filteredUsers.length) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(filteredUsers.map(u => u.id)));
+    }
+  };
+
+  const executeBulkAction = async () => {
+    if (!bulkAction || selectedUserIds.size === 0) return;
+    const ids = Array.from(selectedUserIds);
+    if (bulkAction === "assign_admin" || bulkAction === "assign_moderator") {
+      const role = bulkAction === "assign_admin" ? "admin" : "moderator";
+      for (const uid of ids) {
+        await supabase.from("user_roles").insert({ user_id: uid, role: role as any });
+      }
+      await logAction("bulk_assign_role", "user_role", undefined, { user_count: ids.length, role });
+      toast({ title: `Assigned ${role} to ${ids.length} users` });
+      loadRoles();
+    } else if (bulkAction === "export_csv") {
+      const selected = users.filter(u => ids.includes(u.id));
+      const csv = ["Email,Full Name,Company,Joined,Last Login"]
+        .concat(selected.map(u => {
+          const meta = u.raw_user_meta_data || {};
+          return `${u.email},"${meta.full_name || ""}","${meta.company_name || ""}",${u.created_at},${u.last_sign_in_at || ""}`;
+        }))
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "users_export.csv"; a.click();
+      URL.revokeObjectURL(url);
+      await logAction("bulk_export_csv", "users", undefined, { user_count: ids.length });
+      toast({ title: `Exported ${ids.length} users` });
+    }
+    setSelectedUserIds(new Set());
+    setBulkAction("");
+    loadAuditLog();
   };
 
   const getUserEmail = (userId: string) => users.find(u => u.id === userId)?.email || userId.slice(0, 8) + "...";
-  const getUserMeta = (userId: string) => users.find(u => u.id === userId)?.raw_user_meta_data || {};
 
   const filteredUsers = searchUsers
     ? users.filter(u => u.email?.toLowerCase().includes(searchUsers.toLowerCase()) || u.raw_user_meta_data?.full_name?.toLowerCase().includes(searchUsers.toLowerCase()))
@@ -153,7 +256,6 @@ const AdminDashboard = () => {
   if (adminLoading || loading) {
     return <div className="flex items-center justify-center py-20"><Shield className="w-8 h-8 text-primary animate-pulse" /></div>;
   }
-
   if (!isAdmin) return null;
 
   const statCards = [
@@ -165,11 +267,28 @@ const AdminDashboard = () => {
     { label: "Alerts today", value: stats?.alerts_today || 0, icon: AlertTriangle, color: "text-warning" },
   ];
 
+  const healthItems = health ? [
+    { label: "API Keys", active: health.active_api_keys, total: health.total_api_keys, icon: Key },
+    { label: "Webhooks", active: health.active_webhooks, total: health.total_webhooks, icon: Webhook },
+    { label: "Notification Channels", active: health.active_notification_channels, total: health.total_notification_channels, icon: Bell },
+    { label: "Monitoring Configs", active: health.active_monitoring_configs, total: health.total_monitoring_configs, icon: Settings2 },
+    { label: "Scans (24h)", active: health.scans_last_24h, total: null, icon: ScanLine },
+    { label: "Running Scans", active: health.scans_running, total: null, icon: RefreshCw },
+    { label: "Failed Scans (24h)", active: health.scans_failed_24h, total: null, icon: XCircle },
+    { label: "Critical Alerts", active: health.alerts_critical, total: null, icon: AlertTriangle },
+    { label: "High Alerts", active: health.alerts_high, total: null, icon: AlertTriangle },
+    { label: "Tickets In Progress", active: health.tickets_in_progress, total: null, icon: Clock },
+    { label: "Avg Response (hrs)", active: health.avg_ticket_response_hours, total: null, icon: Zap },
+  ] : [];
+
   return (
-    <div className="container mx-auto px-4 py-6 max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-primary" /> Admin Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage users, content, and support tickets</p>
+    <div className="container mx-auto px-4 py-6 max-w-7xl space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-primary" /> Admin Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">Full system management & analytics</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadAll} className="gap-1.5"><RefreshCw className="w-3.5 h-3.5" /> Refresh</Button>
       </div>
 
       {/* Stats */}
@@ -188,11 +307,15 @@ const AdminDashboard = () => {
       </div>
 
       <Tabs defaultValue="users" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="users" className="text-xs">Users</TabsTrigger>
-          <TabsTrigger value="tickets" className="text-xs">Support</TabsTrigger>
-          <TabsTrigger value="content" className="text-xs">Content</TabsTrigger>
-          <TabsTrigger value="roles" className="text-xs">Roles</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+          <TabsTrigger value="users" className="text-xs gap-1"><Users className="w-3 h-3 hidden sm:inline" />Users</TabsTrigger>
+          <TabsTrigger value="tickets" className="text-xs gap-1"><TicketCheck className="w-3 h-3 hidden sm:inline" />Support</TabsTrigger>
+          <TabsTrigger value="analytics" className="text-xs gap-1"><BarChart3 className="w-3 h-3 hidden sm:inline" />Analytics</TabsTrigger>
+          <TabsTrigger value="health" className="text-xs gap-1"><Heart className="w-3 h-3 hidden sm:inline" />Health</TabsTrigger>
+          <TabsTrigger value="audit" className="text-xs gap-1"><Activity className="w-3 h-3 hidden sm:inline" />Audit Log</TabsTrigger>
+          <TabsTrigger value="content" className="text-xs gap-1"><FileText className="w-3 h-3 hidden sm:inline" />Content</TabsTrigger>
+          <TabsTrigger value="roles" className="text-xs gap-1"><Shield className="w-3 h-3 hidden sm:inline" />Roles</TabsTrigger>
+          <TabsTrigger value="bulk" className="text-xs gap-1"><UsersRound className="w-3 h-3 hidden sm:inline" />Bulk</TabsTrigger>
         </TabsList>
 
         {/* ── Users Tab ── */}
@@ -200,7 +323,7 @@ const AdminDashboard = () => {
           <Card>
             <CardHeader className="pb-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <CardTitle className="text-base">Registered users</CardTitle>
+                <CardTitle className="text-base">Registered users ({users.length})</CardTitle>
                 <div className="relative w-full sm:w-64">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                   <Input placeholder="Search by email or name..." value={searchUsers} onChange={(e) => setSearchUsers(e.target.value)} className="pl-8 text-xs h-8" />
@@ -236,6 +359,7 @@ const AdminDashboard = () => {
                       </div>
                     );
                   })}
+                  {filteredUsers.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">No users found</p>}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -299,7 +423,7 @@ const AdminDashboard = () => {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <CardTitle className="text-base">Support tickets</CardTitle>
+                  <CardTitle className="text-base">Support tickets ({tickets.length})</CardTitle>
                   <div className="relative w-full sm:w-64">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                     <Input placeholder="Search tickets..." value={searchTickets} onChange={(e) => setSearchTickets(e.target.value)} className="pl-8 text-xs h-8" />
@@ -335,6 +459,182 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* ── Analytics Tab ── */}
+        <TabsContent value="analytics">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Signups Chart */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">User signups (30 days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={analytics?.signups_by_day || []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 14%, 16%)" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(215, 12%, 52%)" }} tickFormatter={(v) => format(new Date(v), "MMM d")} />
+                    <YAxis tick={{ fontSize: 10, fill: "hsl(215, 12%, 52%)" }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ background: "hsl(220, 16%, 9%)", border: "1px solid hsl(220, 14%, 16%)", borderRadius: 8, fontSize: 12 }} labelFormatter={(v) => format(new Date(v), "MMM d, yyyy")} />
+                    <Line type="monotone" dataKey="count" stroke={CHART_COLORS[0]} strokeWidth={2} dot={{ r: 3 }} name="Signups" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Alerts Chart */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Alerts (30 days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={analytics?.alerts_by_day || []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 14%, 16%)" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(215, 12%, 52%)" }} tickFormatter={(v) => format(new Date(v), "MMM d")} />
+                    <YAxis tick={{ fontSize: 10, fill: "hsl(215, 12%, 52%)" }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ background: "hsl(220, 16%, 9%)", border: "1px solid hsl(220, 14%, 16%)", borderRadius: 8, fontSize: 12 }} labelFormatter={(v) => format(new Date(v), "MMM d, yyyy")} />
+                    <Bar dataKey="count" fill={CHART_COLORS[1]} radius={[4, 4, 0, 0]} name="Alerts" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Severity Pie */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Alerts by severity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={analytics?.alerts_by_severity || []} dataKey="count" nameKey="severity" cx="50%" cy="50%" outerRadius={80} label={({ severity, count }) => `${severity} (${count})`}>
+                      {(analytics?.alerts_by_severity || []).map((_: any, i: number) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: "hsl(220, 16%, 9%)", border: "1px solid hsl(220, 14%, 16%)", borderRadius: 8, fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Scans Chart */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Scans (30 days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={analytics?.scans_by_day || []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 14%, 16%)" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(215, 12%, 52%)" }} tickFormatter={(v) => format(new Date(v), "MMM d")} />
+                    <YAxis tick={{ fontSize: 10, fill: "hsl(215, 12%, 52%)" }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ background: "hsl(220, 16%, 9%)", border: "1px solid hsl(220, 14%, 16%)", borderRadius: 8, fontSize: 12 }} labelFormatter={(v) => format(new Date(v), "MMM d, yyyy")} />
+                    <Bar dataKey="count" fill={CHART_COLORS[3]} radius={[4, 4, 0, 0]} name="Scans" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Tickets by Status */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Tickets by status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={analytics?.tickets_by_status || []} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 14%, 16%)" />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(215, 12%, 52%)" }} allowDecimals={false} />
+                    <YAxis dataKey="status" type="category" tick={{ fontSize: 11, fill: "hsl(215, 12%, 52%)" }} width={80} />
+                    <Tooltip contentStyle={{ background: "hsl(220, 16%, 9%)", border: "1px solid hsl(220, 14%, 16%)", borderRadius: 8, fontSize: 12 }} />
+                    <Bar dataKey="count" fill={CHART_COLORS[4]} radius={[0, 4, 4, 0]} name="Tickets" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ── System Health Tab ── */}
+        <TabsContent value="health">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><Heart className="w-4 h-4 text-destructive" /> System Health Monitor</CardTitle>
+              <p className="text-xs text-muted-foreground">Real-time overview of all backend services</p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {healthItems.map(item => (
+                  <div key={item.label} className="p-3 rounded-md border border-border space-y-1">
+                    <div className="flex items-center gap-2">
+                      <item.icon className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-medium text-foreground">{item.label}</span>
+                    </div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl font-semibold text-foreground tabular-nums">{item.active}</span>
+                      {item.total !== null && <span className="text-xs text-muted-foreground">/ {item.total} total</span>}
+                    </div>
+                    {item.total !== null && (
+                      <div className="w-full h-1.5 rounded-full bg-secondary overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${item.total > 0 ? (Number(item.active) / Number(item.total)) * 100 : 0}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Audit Log Tab ── */}
+        <TabsContent value="audit">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><Activity className="w-4 h-4 text-info" /> Activity Audit Log</CardTitle>
+              <p className="text-xs text-muted-foreground">Track all admin actions for accountability</p>
+            </CardHeader>
+            <CardContent>
+              {auditLog.length === 0 ? (
+                <div className="text-center py-12">
+                  <Activity className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-foreground">No admin actions recorded yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">Actions like role changes, ticket responses, and content edits will appear here</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[450px]">
+                  <div className="space-y-1">
+                    {auditLog.map(log => (
+                      <div key={log.id} className="p-2.5 rounded-md border border-border text-sm hover:bg-secondary/20 transition-colors">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className="text-[10px]">{log.action}</Badge>
+                              <span className="text-xs text-muted-foreground">{log.target_type}</span>
+                            </div>
+                            <p className="text-xs text-foreground">
+                              Admin: <span className="text-muted-foreground">{getUserEmail(log.admin_id)}</span>
+                              {log.target_id && <> · Target: <span className="text-muted-foreground font-mono text-[10px]">{log.target_id.slice(0, 12)}...</span></>}
+                            </p>
+                            {log.details && Object.keys(log.details).length > 0 && (
+                              <p className="text-[10px] text-muted-foreground font-mono bg-secondary/30 rounded px-1.5 py-0.5 inline-block">
+                                {JSON.stringify(log.details).slice(0, 120)}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ── Content Tab ── */}
@@ -418,13 +718,65 @@ const AdminDashboard = () => {
                       <span className="text-foreground">{getUserEmail(r.user_id)}</span>
                       <Badge variant="outline" className="text-[10px]">{r.role}</Badge>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeRole(r.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeRole(r.id, r.user_id)}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 ))}
                 {roles.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No roles assigned</p>}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Bulk Actions Tab ── */}
+        <TabsContent value="bulk">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2"><UsersRound className="w-4 h-4 text-primary" /> Bulk User Actions</CardTitle>
+              <p className="text-xs text-muted-foreground">Select multiple users and perform bulk operations</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input placeholder="Search users..." value={searchUsers} onChange={(e) => setSearchUsers(e.target.value)} className="pl-8 text-xs h-8" />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className="text-xs">{selectedUserIds.size} selected</Badge>
+                  <Select value={bulkAction} onValueChange={setBulkAction}>
+                    <SelectTrigger className="w-44 text-xs h-8"><SelectValue placeholder="Select action..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="assign_admin">Assign Admin Role</SelectItem>
+                      <SelectItem value="assign_moderator">Assign Moderator Role</SelectItem>
+                      <SelectItem value="export_csv">Export as CSV</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" onClick={executeBulkAction} disabled={!bulkAction || selectedUserIds.size === 0} className="gap-1.5">
+                    <Zap className="w-3.5 h-3.5" /> Execute
+                  </Button>
+                </div>
+              </div>
+              <ScrollArea className="h-[350px]">
+                <div className="space-y-1">
+                  <button onClick={selectAllUsers} className="w-full text-left p-2 rounded-md border border-border hover:bg-secondary/30 transition-colors flex items-center gap-2">
+                    <Checkbox checked={selectedUserIds.size === filteredUsers.length && filteredUsers.length > 0} />
+                    <span className="text-xs font-medium text-muted-foreground">Select all ({filteredUsers.length})</span>
+                  </button>
+                  {filteredUsers.map(u => {
+                    const meta = u.raw_user_meta_data || {};
+                    return (
+                      <button key={u.id} onClick={() => toggleUserSelection(u.id)} className="w-full text-left p-2.5 rounded-md border border-border hover:bg-secondary/30 transition-colors flex items-center gap-3">
+                        <Checkbox checked={selectedUserIds.has(u.id)} />
+                        <div className="min-w-0 space-y-0.5">
+                          <p className="text-sm font-medium text-foreground truncate">{meta.full_name || u.email}</p>
+                          <p className="text-xs text-muted-foreground">{u.email}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         </TabsContent>
