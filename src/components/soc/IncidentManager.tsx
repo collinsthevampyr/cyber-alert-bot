@@ -200,15 +200,17 @@ export const IncidentManager = () => {
                 <Separator />
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">Link unassigned alert</p>
-                  <ScrollArea className="h-24">
-                    {alerts.map(a => (
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {alerts.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground text-center py-2">No unassigned alerts</p>
+                    ) : alerts.map(a => (
                       <button key={a.id} onClick={() => correlateAlert(a.id, selectedIncident.id)}
-                        className="w-full text-left flex items-center gap-2 py-1 px-2 rounded hover:bg-secondary/40 text-xs">
+                        className="w-full text-left flex items-center gap-2 py-1.5 px-2 rounded hover:bg-secondary/40 text-xs cursor-pointer">
                         <AlertCircle className="w-3 h-3 text-muted-foreground shrink-0" />
                         <span className="truncate">{a.tool_name}: {a.summary}</span>
                       </button>
                     ))}
-                  </ScrollArea>
+                  </div>
                 </div>
                 <Separator />
                 <div>
