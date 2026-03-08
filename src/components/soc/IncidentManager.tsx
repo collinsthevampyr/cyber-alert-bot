@@ -30,6 +30,14 @@ export const IncidentManager = () => {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    const ch = supabase.channel("incidents_rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "incidents" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "alerts" }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
+
   const load = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
