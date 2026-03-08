@@ -71,11 +71,15 @@ export const SIEMIntegrations = () => {
   };
 
   const testIntegration = async (integration: any) => {
-    toast({ title: "Test connection", description: `Sending test event to ${integration.name}...` });
-    // In production, this would call an edge function to test the SIEM endpoint
-    setTimeout(() => {
-      toast({ title: "Test complete", description: "Connection test simulated — configure actual endpoint for live testing" });
-    }, 1500);
+    toast({ title: "Syncing...", description: `Triggering SIEM ingestion for ${integration.name}...` });
+    try {
+      const { data, error } = await supabase.functions.invoke("siem-ingest");
+      if (error) throw error;
+      toast({ title: "Sync complete", description: `Ingested ${data?.ingested || 0} events` });
+      load();
+    } catch (err: any) {
+      toast({ title: "Sync failed", description: err.message || "Check SIEM endpoint configuration", variant: "destructive" });
+    }
   };
 
   if (loading) return <Card><CardContent className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></CardContent></Card>;

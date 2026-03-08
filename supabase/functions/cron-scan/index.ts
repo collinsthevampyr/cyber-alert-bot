@@ -288,19 +288,19 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
       console.log(`✅ User ${config.user_id}: ${alerts.length} alerts`);
     }
 
-    // Also run escalation checks
+    // Run escalation checks and SIEM ingestion
     try {
-      const escUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/check-escalations`;
-      await fetch(escUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-        },
-      });
-      console.log("Escalation check triggered.");
+      const baseUrl = Deno.env.get("SUPABASE_URL");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` };
+
+      await Promise.all([
+        fetch(`${baseUrl}/functions/v1/check-escalations`, { method: "POST", headers }),
+        fetch(`${baseUrl}/functions/v1/siem-ingest`, { method: "POST", headers }),
+      ]);
+      console.log("Escalation + SIEM ingest triggered.");
     } catch (e) {
-      console.error("Escalation check failed:", e);
+      console.error("Post-scan triggers failed:", e);
     }
 
     const summary = `Cron complete: ${totalScanned} users scanned, ${totalAlerts} alerts generated.`;
