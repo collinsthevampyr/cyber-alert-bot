@@ -7,6 +7,7 @@ import { EscalationRules } from "@/components/soc/EscalationRules";
 import { SLADashboard } from "@/components/soc/SLADashboard";
 import { ResponseActions } from "@/components/soc/ResponseActions";
 import { SIEMIntegrations } from "@/components/soc/SIEMIntegrations";
+import { ShiftHandover } from "@/components/soc/ShiftHandover";
 
 const SOCWorkspace = () => {
   return (
@@ -26,6 +27,7 @@ const SOCWorkspace = () => {
           <TabsTrigger value="sla" className="text-xs">SLA Tracking</TabsTrigger>
           <TabsTrigger value="response" className="text-xs">Response Actions</TabsTrigger>
           <TabsTrigger value="siem" className="text-xs">SIEM</TabsTrigger>
+          <TabsTrigger value="handover" className="text-xs">Handover</TabsTrigger>
         </TabsList>
 
         <TabsContent value="triage"><AlertTriage /></TabsContent>
@@ -36,6 +38,7 @@ const SOCWorkspace = () => {
         <TabsContent value="sla"><SLADashboard /></TabsContent>
         <TabsContent value="response"><ResponseActions /></TabsContent>
         <TabsContent value="siem"><SIEMIntegrations /></TabsContent>
+        <TabsContent value="handover"><ShiftHandover /></TabsContent>
       </Tabs>
     </div>
   );

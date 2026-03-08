@@ -6,6 +6,48 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Check if an alert should be suppressed based on active suppression rules
+async function checkSuppression(supabase: any, userId: string, toolName: string, threat: any): Promise<boolean> {
+  const { data: rules } = await supabase
+    .from("suppression_rules")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  if (!rules?.length) return false;
+
+  const now = new Date();
+
+  for (const rule of rules) {
+    // Skip expired rules
+    if (rule.expires_at && new Date(rule.expires_at) < now) continue;
+
+    const conditions = rule.conditions as any;
+    if (!conditions) continue;
+
+    let matches = true;
+
+    // Check tool_name condition
+    if (conditions.tool_name && conditions.tool_name.toLowerCase() !== toolName.toLowerCase()) {
+      matches = false;
+    }
+
+    // Check severity condition
+    if (conditions.severity && threat.severity && conditions.severity.toLowerCase() !== threat.severity.toLowerCase()) {
+      matches = false;
+    }
+
+    // Check keyword condition (substring match in summary)
+    if (conditions.keyword && threat.summary && !threat.summary.toLowerCase().includes(conditions.keyword.toLowerCase())) {
+      matches = false;
+    }
+
+    if (matches) return true;
+  }
+
+  return false;
+}
+
 // Maps frequency config to minutes
 const FREQUENCY_MINUTES: Record<string, number> = {
   "15min": 15,
@@ -139,6 +181,29 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
 
           if (result.hasThreats && result.threats?.length) {
             for (const threat of result.threats) {
+              // Check suppression rules before inserting
+              const shouldSuppress = await checkSuppression(supabase, config.user_id, tool, threat);
+              if (shouldSuppress) {
+                console.log(`Suppressed alert for ${tool}: ${threat.summary?.substring(0, 50)}`);
+                continue;
+              }
+
+              // Check for duplicate alerts (same tool + similar summary in last 24h)
+              const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+              const { data: existing } = await supabase
+                .from("alerts")
+                .select("id")
+                .eq("user_id", config.user_id)
+                .eq("tool_name", tool)
+                .eq("summary", (threat.summary || "Security threat detected").substring(0, 200))
+                .gte("detected_at", oneDayAgo)
+                .limit(1);
+
+              if (existing?.length) {
+                console.log(`Duplicate suppressed for ${tool}: ${threat.summary?.substring(0, 50)}`);
+                continue;
+              }
+
               const { data: alert, error: alertErr } = await supabase
                 .from("alerts")
                 .insert({
@@ -223,19 +288,19 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
       console.log(`✅ User ${config.user_id}: ${alerts.length} alerts`);
     }
 
-    // Also run escalation checks
+    // Run escalation checks and SIEM ingestion
     try {
-      const escUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/check-escalations`;
-      await fetch(escUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-        },
-      });
-      console.log("Escalation check triggered.");
+      const baseUrl = Deno.env.get("SUPABASE_URL");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` };
+
+      await Promise.all([
+        fetch(`${baseUrl}/functions/v1/check-escalations`, { method: "POST", headers }),
+        fetch(`${baseUrl}/functions/v1/siem-ingest`, { method: "POST", headers }),
+      ]);
+      console.log("Escalation + SIEM ingest triggered.");
     } catch (e) {
-      console.error("Escalation check failed:", e);
+      console.error("Post-scan triggers failed:", e);
     }
 
     const summary = `Cron complete: ${totalScanned} users scanned, ${totalAlerts} alerts generated.`;

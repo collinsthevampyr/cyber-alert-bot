@@ -661,6 +661,51 @@ export type Database = {
         }
         Relationships: []
       }
+      shift_handovers: {
+        Row: {
+          created_at: string
+          escalated_count: number
+          id: string
+          key_findings: string | null
+          notes: string | null
+          open_alerts_count: number
+          pending_actions: string | null
+          resolved_count: number
+          shift_end: string
+          shift_start: string
+          summary: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          escalated_count?: number
+          id?: string
+          key_findings?: string | null
+          notes?: string | null
+          open_alerts_count?: number
+          pending_actions?: string | null
+          resolved_count?: number
+          shift_end?: string
+          shift_start?: string
+          summary?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          escalated_count?: number
+          id?: string
+          key_findings?: string | null
+          notes?: string | null
+          open_alerts_count?: number
+          pending_actions?: string | null
+          resolved_count?: number
+          shift_end?: string
+          shift_start?: string
+          summary?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       siem_integrations: {
         Row: {
           config: Json

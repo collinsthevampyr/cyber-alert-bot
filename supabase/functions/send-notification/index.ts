@@ -115,11 +115,30 @@ async function sendToChannel(channel: any, alert: AlertData): Promise<{ success:
       }
 
       case "email": {
-        // Use Lovable AI to send via a simple email edge function approach
-        // For now, we'll store a notification record; email requires external service
-        // We'll use the LOVABLE_API_KEY with a simple fetch to a mail endpoint
-        console.log(`Email notification queued for ${config.email_address}: ${alert.summary}`);
-        // In production, integrate with an email service. For now, log it.
+        const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+        if (!RESEND_API_KEY) {
+          console.log(`Email skipped (no RESEND_API_KEY): ${config.email_address}`);
+          return { success: false, error: "Email service not configured (RESEND_API_KEY missing)" };
+        }
+
+        const emailResp = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: config.from_address || "SecureWatch <alerts@securewatch.io>",
+            to: [config.email_address],
+            subject: `🔔 [${alert.severity}] Security Alert: ${alert.tool_name}`,
+            html: formatEmailHtml(alert),
+          }),
+        });
+
+        if (!emailResp.ok) {
+          const errText = await emailResp.text();
+          return { success: false, error: `Email: ${emailResp.status} - ${errText}` };
+        }
         return { success: true };
       }
 
