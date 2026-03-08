@@ -460,8 +460,6 @@ async function handleMcpRequest(body: any, userId: string) {
           result = { channels: channels || [] };
           break;
         }
-          break;
-        }
 
         default:
           return { jsonrpc: "2.0", id, error: { code: -32601, message: `Unknown tool: ${toolName}` } };
