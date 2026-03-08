@@ -79,6 +79,7 @@ const Dashboard = () => {
           <MonitoringConfig />
           <ScanStatus />
           <AlertHistory />
+          <N8nIntegration />
         </div>
       </main>
     </div>
