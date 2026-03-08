@@ -253,6 +253,12 @@ export const AlertTriage = () => {
                                   {savingNote ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null} Add Note
                                 </Button>
                               </div>
+                              <Separator />
+                              <EvidenceUploader
+                                alertId={alert.id}
+                                attachments={evidence}
+                                onRefresh={() => loadEvidence(alert.id)}
+                              />
                             </div>
                           </DialogContent>
                         </Dialog>
