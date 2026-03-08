@@ -38,6 +38,7 @@ const SOCWorkspace = () => {
         <TabsContent value="sla"><SLADashboard /></TabsContent>
         <TabsContent value="response"><ResponseActions /></TabsContent>
         <TabsContent value="siem"><SIEMIntegrations /></TabsContent>
+        <TabsContent value="handover"><ShiftHandover /></TabsContent>
       </Tabs>
     </div>
   );
