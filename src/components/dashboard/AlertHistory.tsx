@@ -13,6 +13,7 @@ export const AlertHistory = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
