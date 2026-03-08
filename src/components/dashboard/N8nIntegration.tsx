@@ -264,15 +264,54 @@ export const N8nIntegration = () => {
                         <Badge key={e} variant="outline" className="text-[10px]">{e}</Badge>
                       ))}
                     </div>
-                    {wh.last_triggered_at && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Last triggered: {new Date(wh.last_triggered_at).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                  <Button size="icon" variant="ghost" className="hover:text-destructive" onClick={() => deleteWebhook(wh.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                     {wh.last_triggered_at && (
+                       <p className="text-xs text-muted-foreground mt-1">
+                         Last triggered: {new Date(wh.last_triggered_at).toLocaleDateString()}
+                       </p>
+                     )}
+                   </div>
+                   <div className="flex gap-1">
+                     <Button
+                       size="icon"
+                       variant="ghost"
+                       className="hover:text-primary"
+                       disabled={testingWebhookId === wh.id}
+                       onClick={async () => {
+                         setTestingWebhookId(wh.id);
+                         try {
+                           const resp = await fetch(wh.url, {
+                             method: "POST",
+                             headers: { "Content-Type": "application/json" },
+                             body: JSON.stringify({
+                               event: "test",
+                               message: "This is a test payload from SecureWatch AI",
+                               timestamp: new Date().toISOString(),
+                               sample_alert: {
+                                 tool_name: "Test Tool",
+                                 severity: "Medium",
+                                 summary: "This is a sample alert to verify your webhook connection works correctly.",
+                                 source_url: "https://example.com/test",
+                                 detected_at: new Date().toISOString(),
+                               },
+                             }),
+                           });
+                           if (resp.ok) {
+                             toast({ title: "Test Sent!", description: "Sample payload delivered to your webhook." });
+                           } else {
+                             toast({ title: "Test Failed", description: `Webhook returned ${resp.status}. Check the URL.`, variant: "destructive" });
+                           }
+                         } catch (e: any) {
+                           toast({ title: "Test Failed", description: e.message || "Could not reach the webhook URL.", variant: "destructive" });
+                         }
+                         setTestingWebhookId(null);
+                       }}
+                     >
+                       {testingWebhookId === wh.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <TestTube className="w-4 h-4" />}
+                     </Button>
+                     <Button size="icon" variant="ghost" className="hover:text-destructive" onClick={() => deleteWebhook(wh.id)}>
+                       <Trash2 className="w-4 h-4" />
+                     </Button>
+                   </div>
                 </div>
               ))}
               {webhooks.length === 0 && (
