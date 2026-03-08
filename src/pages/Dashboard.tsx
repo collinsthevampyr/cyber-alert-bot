@@ -63,15 +63,26 @@ const Dashboard = () => {
               <p className="text-xs text-muted-foreground">Threat Monitoring Dashboard</p>
             </div>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleLogout}
-            className="hover-scale transition-all hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => navigate("/docs")}
+              className="hover-scale transition-all"
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              Docs
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleLogout}
+              className="hover-scale transition-all hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
