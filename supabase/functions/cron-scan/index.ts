@@ -301,7 +301,58 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
         await autoCorrelateAlerts(supabase, config.user_id, alerts);
       }
 
-      // Send notifications if alerts found
+      // Auto-analyze each alert with AI
+      for (const alert of alerts) {
+        try {
+          console.log(`🤖 Auto-analyzing alert ${alert.id}...`);
+          const analysisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a senior cybersecurity analyst. Return ONLY valid JSON (no markdown, no backticks):
+{
+  "analysis": "Detailed analysis of the threat (3-5 paragraphs)",
+  "remediation": "Step-by-step remediation as numbered steps"
+}`,
+                },
+                {
+                  role: "user",
+                  content: `Analyze this cybersecurity alert:\n\nTool: ${alert.tool_name}\nSeverity: ${alert.severity}\nSummary: ${alert.summary}\nSource: ${alert.source_url || "N/A"}\nUser's Stack: ${config.tools_list.join(", ")}`,
+                },
+              ],
+            }),
+          });
+
+          if (analysisResponse.ok) {
+            const analysisData = await analysisResponse.json();
+            const analysisContent = analysisData.choices?.[0]?.message?.content;
+            if (analysisContent) {
+              try {
+                const clean = analysisContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+                const parsed = JSON.parse(clean);
+                await supabase.from("alerts").update({
+                  analysis: parsed.analysis,
+                  remediation: parsed.remediation,
+                }).eq("id", alert.id);
+                alert.analysis = parsed.analysis;
+                alert.remediation = parsed.remediation;
+                console.log(`✅ Auto-analysis complete for alert ${alert.id}`);
+              } catch { console.error(`Failed to parse analysis for alert ${alert.id}`); }
+            }
+          }
+        } catch (e) {
+          console.error(`Auto-analysis error for ${alert.id}:`, e);
+        }
+      }
+
+      // Send notifications with "AI Agent Analysis" title
       if (alerts.length > 0) {
         const { data: channels } = await supabase
           .from("notification_channels")
@@ -314,19 +365,36 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
             for (const ch of channels) {
               try {
                 const cfg = ch.config as any;
-                const msg = `🔔 *Auto-Scan Alert*\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}`;
+                const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
+                const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
 
                 if (ch.channel_type === "slack" && cfg.webhook_url) {
                   await fetch(cfg.webhook_url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ text: msg }),
+                    body: JSON.stringify({ text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}${analysisBlock}${remediationBlock}` }),
                   });
                 } else if (ch.channel_type === "discord" && cfg.webhook_url) {
+                  const fields = [
+                    { name: "Tool", value: alert.tool_name, inline: true },
+                    { name: "Severity", value: alert.severity, inline: true },
+                    { name: "Summary", value: alert.summary },
+                  ];
+                  if (alert.analysis) fields.push({ name: "📊 AI Analysis", value: alert.analysis.substring(0, 1024), inline: false });
+                  if (alert.remediation) fields.push({ name: "🛡️ Remediation", value: alert.remediation.substring(0, 1024), inline: false });
+
                   await fetch(cfg.webhook_url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ content: msg }),
+                    body: JSON.stringify({
+                      embeds: [{
+                        title: "🤖 AI Agent Analysis",
+                        color: ({ Critical: 0xff0000, High: 0xff6600, Medium: 0xffcc00, Low: 0x00cc00 } as any)[alert.severity] || 0x808080,
+                        fields,
+                        timestamp: new Date().toISOString(),
+                        footer: { text: "SecureWatch AI Agent" },
+                      }],
+                    }),
                   });
                 }
               } catch (chErr) {
@@ -340,11 +408,13 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
         if (config.slack_webhook_url) {
           for (const alert of alerts) {
             try {
+              const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
+              const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
               await fetch(config.slack_webhook_url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  text: `🔔 *Auto-Scan Alert*\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}`,
+                  text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}${analysisBlock}${remediationBlock}`,
                 }),
               });
             } catch {}

@@ -65,10 +65,17 @@ export const AlertHistory = () => {
     try {
       const { data, error } = await supabase.functions.invoke("analyze-alert", { body: { alertId: id } });
       if (error) throw error;
-      setAlerts(p => p.map(a => a.id === id ? { ...a, analysis: data.analysis, remediation: data.remediation } : a));
+      if (!data || data.error) throw new Error(data?.error || "Analysis returned no data");
+      const updatedAlert = { analysis: data.analysis, remediation: data.remediation };
+      setAlerts(p => p.map(a => a.id === id ? { ...a, ...updatedAlert } : a));
+      setSelectedAlert((prev: any) => prev?.id === id ? { ...prev, ...updatedAlert } : prev);
       toast({ title: data.cached ? "Cached analysis" : "Analysis complete" });
-    } catch (e: any) { toast({ title: "Failed", description: e.message, variant: "destructive" }); }
-    setAnalyzingIds(p => { const n = new Set(p); n.delete(id); return n; });
+    } catch (e: any) {
+      console.error("Analysis error:", e);
+      toast({ title: "Analysis failed", description: e.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setAnalyzingIds(p => { const n = new Set(p); n.delete(id); return n; });
+    }
   };
 
   const send = async (id: string) => {
@@ -189,11 +196,11 @@ export const AlertHistory = () => {
           <Separator />
           <div className="flex flex-wrap gap-2">
             {!alert.analysis ? (
-              <Button size="sm" onClick={() => analyze(alert.id)} disabled={analyzingIds.has(alert.id)}>
+              <Button size="sm" onClick={(e) => { e.stopPropagation(); analyze(alert.id); }} disabled={analyzingIds.has(alert.id)}>
                 {analyzingIds.has(alert.id) ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Analyzing...</> : <><Brain className="w-3.5 h-3.5 mr-1.5" /> Analyze with AI</>}
               </Button>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => { setAlerts(p => p.map(a => a.id === alert.id ? { ...a, analysis: null, remediation: null } : a)); analyze(alert.id); }} disabled={analyzingIds.has(alert.id)}>
+              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); analyze(alert.id); }} disabled={analyzingIds.has(alert.id)}>
                 {analyzingIds.has(alert.id) ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Re-analyzing...</> : <><Brain className="w-3.5 h-3.5 mr-1.5" /> Re-analyze</>}
               </Button>
             )}
