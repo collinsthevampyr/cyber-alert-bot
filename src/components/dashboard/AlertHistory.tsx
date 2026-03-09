@@ -65,10 +65,17 @@ export const AlertHistory = () => {
     try {
       const { data, error } = await supabase.functions.invoke("analyze-alert", { body: { alertId: id } });
       if (error) throw error;
-      setAlerts(p => p.map(a => a.id === id ? { ...a, analysis: data.analysis, remediation: data.remediation } : a));
+      if (!data || data.error) throw new Error(data?.error || "Analysis returned no data");
+      const updatedAlert = { analysis: data.analysis, remediation: data.remediation };
+      setAlerts(p => p.map(a => a.id === id ? { ...a, ...updatedAlert } : a));
+      setSelectedAlert((prev: any) => prev?.id === id ? { ...prev, ...updatedAlert } : prev);
       toast({ title: data.cached ? "Cached analysis" : "Analysis complete" });
-    } catch (e: any) { toast({ title: "Failed", description: e.message, variant: "destructive" }); }
-    setAnalyzingIds(p => { const n = new Set(p); n.delete(id); return n; });
+    } catch (e: any) {
+      console.error("Analysis error:", e);
+      toast({ title: "Analysis failed", description: e.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setAnalyzingIds(p => { const n = new Set(p); n.delete(id); return n; });
+    }
   };
 
   const send = async (id: string) => {
