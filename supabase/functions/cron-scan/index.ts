@@ -296,6 +296,11 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
         alerts_found: alerts.length,
       }).eq("id", scan.id);
 
+      // Auto-correlate alerts into incidents
+      if (alerts.length >= 2) {
+        await autoCorrelateAlerts(supabase, config.user_id, alerts);
+      }
+
       // Auto-analyze each alert with AI
       for (const alert of alerts) {
         try {
