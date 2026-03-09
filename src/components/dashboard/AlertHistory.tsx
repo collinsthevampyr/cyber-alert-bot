@@ -196,11 +196,11 @@ export const AlertHistory = () => {
           <Separator />
           <div className="flex flex-wrap gap-2">
             {!alert.analysis ? (
-              <Button size="sm" onClick={() => analyze(alert.id)} disabled={analyzingIds.has(alert.id)}>
+              <Button size="sm" onClick={(e) => { e.stopPropagation(); analyze(alert.id); }} disabled={analyzingIds.has(alert.id)}>
                 {analyzingIds.has(alert.id) ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Analyzing...</> : <><Brain className="w-3.5 h-3.5 mr-1.5" /> Analyze with AI</>}
               </Button>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => { setAlerts(p => p.map(a => a.id === alert.id ? { ...a, analysis: null, remediation: null } : a)); analyze(alert.id); }} disabled={analyzingIds.has(alert.id)}>
+              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); analyze(alert.id); }} disabled={analyzingIds.has(alert.id)}>
                 {analyzingIds.has(alert.id) ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Re-analyzing...</> : <><Brain className="w-3.5 h-3.5 mr-1.5" /> Re-analyze</>}
               </Button>
             )}
