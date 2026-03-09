@@ -94,7 +94,6 @@ serve(async (req) => {
       console.log("Analyzing threats for:", tool);
 
       try {
-        // Use AI to analyze cybersecurity threats for this tool
         const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -154,22 +153,17 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
 
         console.log(`AI response for ${tool}:`, content);
 
-        // Parse AI response
         let analysisResult;
         try {
-          // Remove markdown code blocks if present
           const cleanContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
           analysisResult = JSON.parse(cleanContent);
         } catch (parseError) {
           console.error(`Failed to parse AI response for ${tool}:`, parseError);
-          console.log("Raw content:", content);
           continue;
         }
 
-        // Process threats
         if (analysisResult.hasThreats && analysisResult.threats?.length > 0) {
           for (const threat of analysisResult.threats) {
-            // Insert alert into database
             const { data: alert, error: alertError } = await supabaseClient
               .from("alerts")
               .insert({
@@ -187,35 +181,6 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
             if (!alertError && alert) {
               alerts.push(alert);
               console.log(`Alert created for ${tool}:`, alert.id);
-
-              // Send to Slack if webhook configured
-              if (config.slack_webhook_url) {
-                try {
-                  const slackMessage = {
-                    text: `🔔 *Cyber Alert Detected*\n*Tool:* ${tool}\n*Severity:* ${threat.severity}\n*Summary:* ${threat.summary}\n*Source:* ${threat.source || "N/A"}\n*Time:* ${new Date().toISOString()}`,
-                  };
-
-                  const slackResponse = await fetch(config.slack_webhook_url, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(slackMessage),
-                  });
-
-                  if (slackResponse.ok) {
-                    // Update alert as sent to Slack
-                    await supabaseClient
-                      .from("alerts")
-                      .update({ sent_to_slack: true })
-                      .eq("id", alert.id);
-
-                    console.log(`Slack notification sent for alert ${alert.id}`);
-                  } else {
-                    console.error("Failed to send Slack notification:", await slackResponse.text());
-                  }
-                } catch (slackError) {
-                  console.error("Slack notification error:", slackError);
-                }
-              }
             }
           }
         }
@@ -236,9 +201,59 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
 
     console.log(`Scan completed. Found ${alerts.length} alerts.`);
 
-    // Send alerts to notification channels
+    // Auto-analyze each alert with AI and send notifications
     if (alerts.length > 0) {
-      // Send to notification_channels (Slack, Discord, Email)
+      for (const alert of alerts) {
+        try {
+          console.log(`🤖 Auto-analyzing alert ${alert.id}...`);
+          const analysisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a senior cybersecurity analyst. Return ONLY valid JSON (no markdown, no backticks):
+{
+  "analysis": "Detailed analysis of the threat (3-5 paragraphs)",
+  "remediation": "Step-by-step remediation as numbered steps"
+}`,
+                },
+                {
+                  role: "user",
+                  content: `Analyze this cybersecurity alert:\n\nTool: ${alert.tool_name}\nSeverity: ${alert.severity}\nSummary: ${alert.summary}\nSource: ${alert.source_url || "N/A"}\nUser's Stack: ${config.tools_list.join(", ")}`,
+                },
+              ],
+            }),
+          });
+
+          if (analysisResponse.ok) {
+            const analysisData = await analysisResponse.json();
+            const analysisContent = analysisData.choices?.[0]?.message?.content;
+            if (analysisContent) {
+              try {
+                const clean = analysisContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+                const parsed = JSON.parse(clean);
+                await supabaseClient.from("alerts").update({
+                  analysis: parsed.analysis,
+                  remediation: parsed.remediation,
+                }).eq("id", alert.id);
+                alert.analysis = parsed.analysis;
+                alert.remediation = parsed.remediation;
+                console.log(`✅ Auto-analysis complete for alert ${alert.id}`);
+              } catch { console.error(`Failed to parse analysis for alert ${alert.id}`); }
+            }
+          }
+        } catch (e) {
+          console.error(`Auto-analysis error for ${alert.id}:`, e);
+        }
+      }
+
+      // Send to notification channels with "AI Agent Analysis" title
       const { data: channels } = await supabaseClient
         .from("notification_channels")
         .select("*")
@@ -250,52 +265,61 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
           for (const channel of channels) {
             try {
               const chConfig = channel.config as any;
+              const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
+              const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
+
               if (channel.channel_type === "slack" && chConfig.webhook_url) {
                 await fetch(chConfig.webhook_url, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    text: `🔔 *Cyber Alert*\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}\n*Source:* ${alert.source_url || "N/A"}\n*Time:* ${new Date().toISOString()}`,
+                    text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}\n*Source:* ${alert.source_url || "N/A"}${analysisBlock}${remediationBlock}\n\n_Analyzed at ${new Date().toISOString()}_`,
                   }),
                 });
               } else if (channel.channel_type === "discord" && chConfig.webhook_url) {
+                const fields = [
+                  { name: "Tool", value: alert.tool_name, inline: true },
+                  { name: "Severity", value: alert.severity, inline: true },
+                  { name: "Summary", value: alert.summary },
+                ];
+                if (alert.analysis) fields.push({ name: "📊 AI Analysis", value: alert.analysis.substring(0, 1024), inline: false });
+                if (alert.remediation) fields.push({ name: "🛡️ Remediation", value: alert.remediation.substring(0, 1024), inline: false });
+
                 await fetch(chConfig.webhook_url, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     embeds: [{
-                      title: "🔔 Security Alert",
+                      title: "🤖 AI Agent Analysis",
                       color: ({ Critical: 0xff0000, High: 0xff6600, Medium: 0xffcc00, Low: 0x00cc00 } as any)[alert.severity] || 0x808080,
-                      fields: [
-                        { name: "Tool", value: alert.tool_name, inline: true },
-                        { name: "Severity", value: alert.severity, inline: true },
-                        { name: "Summary", value: alert.summary },
-                      ],
+                      fields,
                       timestamp: new Date().toISOString(),
-                      footer: { text: "SecureWatch AI" },
+                      footer: { text: "SecureWatch AI Agent" },
                     }],
                   }),
                 });
               } else if (channel.channel_type === "email") {
-                console.log(`Email queued for ${chConfig.email_address}: ${alert.summary}`);
+                console.log(`Email queued for ${chConfig.email_address}: AI Agent Analysis - ${alert.summary}`);
               }
             } catch (chErr) {
               console.error(`Channel ${channel.name} error:`, chErr);
             }
           }
         }
-        console.log(`Notifications sent to ${channels.length} channels.`);
+        console.log(`Notifications sent to ${channels.length} channels with AI analysis.`);
       }
 
-      // Legacy Slack webhook from monitoring config
+      // Legacy Slack webhook
       if (config.slack_webhook_url) {
         for (const alert of alerts) {
           try {
+            const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
+            const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
             await fetch(config.slack_webhook_url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                text: `🔔 *Cyber Alert*\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}\n*Source:* ${alert.source_url || "N/A"}`,
+                text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}\n*Source:* ${alert.source_url || "N/A"}${analysisBlock}${remediationBlock}`,
               }),
             });
           } catch (e) {
@@ -304,7 +328,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
         }
       }
 
-      // Trigger registered webhooks
+      // Trigger webhooks
       const { data: webhooks } = await supabaseClient
         .from("webhooks")
         .select("*")
@@ -320,8 +344,9 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   event: "alert.created",
+                  title: "AI Agent Analysis",
                   scan_id: scan.id,
-                  alerts,
+                  alerts: alerts.map(a => ({ ...a })),
                   timestamp: new Date().toISOString(),
                 }),
               });
