@@ -104,7 +104,7 @@ export const MonitoringConfig = () => {
             {tools.map((tool) => (
               <Badge key={tool} variant="secondary" className="gap-1 pr-1 text-xs font-normal">
                 {tool}
-                <button onClick={() => setTools(tools.filter(t => t !== tool))} className="ml-0.5 hover:text-destructive transition-colors">
+                <button onClick={() => removeTool(tool)} className="ml-0.5 hover:text-destructive transition-colors">
                   <X className="w-3 h-3" />
                 </button>
               </Badge>
