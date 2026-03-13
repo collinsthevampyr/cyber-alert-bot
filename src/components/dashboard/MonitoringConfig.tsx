@@ -30,8 +30,8 @@ export const MonitoringConfig = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     userIdRef.current = user.id;
-    const { data } = await supabase.from("monitoring_config").select("*").eq("user_id", user.id).single();
-    if (data) { setTools(data.tools_list || []); setFrequency(data.scan_frequency); }
+    const { data } = await supabase.from("monitoring_config").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+    if (data) { setConfigId(data.id); setTools(data.tools_list || []); setFrequency(data.scan_frequency); }
   };
 
   const persistConfig = async (newTools: string[], newFrequency: string) => {
