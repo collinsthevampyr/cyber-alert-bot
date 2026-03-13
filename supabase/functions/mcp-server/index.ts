@@ -439,7 +439,7 @@ async function handleMcpRequest(body: any, userId: string) {
           for (const ch of channels) {
             try {
               const cfg = ch.config as any;
-              if (ch.channel_type === "slack" && cfg.webhook_url) {
+              if (ch.channel_type === "slack" && cfg.webhook_url && isSafeWebhookUrl(cfg.webhook_url)) {
                 let text = `🔔 *Security Alert*\n*Tool:* ${alertData.tool_name}\n*Severity:* ${alertData.severity}\n*Summary:* ${alertData.summary}`;
                 if (alertData.analysis) text += `\n\n📊 *Analysis:*\n${alertData.analysis}`;
                 if (alertData.remediation) text += `\n\n🛡️ *Remediation:*\n${alertData.remediation}`;
