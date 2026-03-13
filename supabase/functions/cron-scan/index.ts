@@ -395,7 +395,7 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}${analysisBlock}${remediationBlock}` }),
                   });
-                } else if (ch.channel_type === "discord" && cfg.webhook_url) {
+                } else if (ch.channel_type === "discord" && cfg.webhook_url && isSafeWebhookUrl(cfg.webhook_url)) {
                   const fields = [
                     { name: "Tool", value: alert.tool_name, inline: true },
                     { name: "Severity", value: alert.severity, inline: true },
