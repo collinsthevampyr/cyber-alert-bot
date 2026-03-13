@@ -287,7 +287,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
                     text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}\n*Source:* ${alert.source_url || "N/A"}${analysisBlock}${remediationBlock}\n\n_Analyzed at ${new Date().toISOString()}_`,
                   }),
                 });
-              } else if (channel.channel_type === "discord" && chConfig.webhook_url) {
+              } else if (channel.channel_type === "discord" && chConfig.webhook_url && isSafeWebhookUrl(chConfig.webhook_url)) {
                 const fields = [
                   { name: "Tool", value: alert.tool_name, inline: true },
                   { name: "Severity", value: alert.severity, inline: true },
