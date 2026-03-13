@@ -451,8 +451,8 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
     // Run escalation checks and SIEM ingestion
     try {
       const baseUrl = Deno.env.get("SUPABASE_URL");
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` };
+      const cronSecret = Deno.env.get("CRON_SECRET");
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${cronSecret}` };
 
       await Promise.all([
         fetch(`${baseUrl}/functions/v1/check-escalations`, { method: "POST", headers }),

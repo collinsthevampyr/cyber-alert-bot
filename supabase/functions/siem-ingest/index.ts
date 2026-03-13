@@ -61,6 +61,11 @@ serve(async (req) => {
         continue;
       }
 
+      if (!isSafeExternalUrl(config.endpoint)) {
+        console.log(`Skipping ${integration.name}: unsafe endpoint URL blocked`);
+        continue;
+      }
+
       try {
         let events: any[] = [];
 

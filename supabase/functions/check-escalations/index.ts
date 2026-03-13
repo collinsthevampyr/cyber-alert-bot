@@ -106,7 +106,7 @@ serve(async (req) => {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ text: message }),
             });
-          } else if (channel.channel_type === "discord" && config.webhook_url) {
+          } else if (channel.channel_type === "discord" && config.webhook_url && isSafeWebhookUrl(config.webhook_url)) {
             await fetch(config.webhook_url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
