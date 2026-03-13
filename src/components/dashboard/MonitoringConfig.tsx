@@ -13,6 +13,7 @@ const TOOL_NAME_PATTERN = /^[a-zA-Z0-9\s._\-/()]+$/;
 const MAX_TOOLS = 50;
 
 export const MonitoringConfig = () => {
+  const [configId, setConfigId] = useState<string | null>(null);
   const [tools, setTools] = useState<string[]>([]);
   const [newTool, setNewTool] = useState("");
   const [toolError, setToolError] = useState<string | null>(null);
