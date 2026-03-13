@@ -6,6 +6,17 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
+function isSafeWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!['https:'].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.)/.test(host)) return false;
+    if (['localhost', 'metadata.google.internal', '[::1]'].includes(host)) return false;
+    return true;
+  } catch { return false; }
+}
+
 const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -428,13 +439,13 @@ async function handleMcpRequest(body: any, userId: string) {
           for (const ch of channels) {
             try {
               const cfg = ch.config as any;
-              if (ch.channel_type === "slack" && cfg.webhook_url) {
+              if (ch.channel_type === "slack" && cfg.webhook_url && isSafeWebhookUrl(cfg.webhook_url)) {
                 let text = `🔔 *Security Alert*\n*Tool:* ${alertData.tool_name}\n*Severity:* ${alertData.severity}\n*Summary:* ${alertData.summary}`;
                 if (alertData.analysis) text += `\n\n📊 *Analysis:*\n${alertData.analysis}`;
                 if (alertData.remediation) text += `\n\n🛡️ *Remediation:*\n${alertData.remediation}`;
                 const r = await fetch(cfg.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
                 sendResults.push({ channel: ch.name, type: "slack", success: r.ok });
-              } else if (ch.channel_type === "discord" && cfg.webhook_url) {
+              } else if (ch.channel_type === "discord" && cfg.webhook_url && isSafeWebhookUrl(cfg.webhook_url)) {
                 const fields = [
                   { name: "Tool", value: alertData.tool_name, inline: true },
                   { name: "Severity", value: alertData.severity, inline: true },

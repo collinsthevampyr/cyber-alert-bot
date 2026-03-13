@@ -6,12 +6,33 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function isSafeExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!['https:', 'http:'].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.)/.test(host)) return false;
+    if (['localhost', 'metadata.google.internal', '[::1]'].includes(host)) return false;
+    return true;
+  } catch { return false; }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Authenticate: require CRON_SECRET
+    const CRON_SECRET = Deno.env.get("CRON_SECRET");
+    const authHeader = req.headers.get("Authorization");
+    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -37,6 +58,11 @@ serve(async (req) => {
       const config = integration.config as any;
       if (!config?.endpoint) {
         console.log(`Skipping ${integration.name}: no endpoint configured`);
+        continue;
+      }
+
+      if (!isSafeExternalUrl(config.endpoint)) {
+        console.log(`Skipping ${integration.name}: unsafe endpoint URL blocked`);
         continue;
       }
 

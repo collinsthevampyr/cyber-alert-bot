@@ -121,12 +121,33 @@ const FREQUENCY_MINUTES: Record<string, number> = {
   "daily": 1440,
 };
 
+function isSafeWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!['https:'].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.)/.test(host)) return false;
+    if (['localhost', 'metadata.google.internal', '[::1]'].includes(host)) return false;
+    return true;
+  } catch { return false; }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Authenticate: require CRON_SECRET
+    const CRON_SECRET = Deno.env.get("CRON_SECRET");
+    const authHeader = req.headers.get("Authorization");
+    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -368,13 +389,13 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
                 const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
                 const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
 
-                if (ch.channel_type === "slack" && cfg.webhook_url) {
+              if (ch.channel_type === "slack" && cfg.webhook_url && isSafeWebhookUrl(cfg.webhook_url)) {
                   await fetch(cfg.webhook_url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}${analysisBlock}${remediationBlock}` }),
                   });
-                } else if (ch.channel_type === "discord" && cfg.webhook_url) {
+                } else if (ch.channel_type === "discord" && cfg.webhook_url && isSafeWebhookUrl(cfg.webhook_url)) {
                   const fields = [
                     { name: "Tool", value: alert.tool_name, inline: true },
                     { name: "Severity", value: alert.severity, inline: true },
@@ -405,7 +426,7 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
         }
 
         // Legacy slack webhook
-        if (config.slack_webhook_url) {
+        if (config.slack_webhook_url && isSafeWebhookUrl(config.slack_webhook_url)) {
           for (const alert of alerts) {
             try {
               const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
@@ -430,8 +451,8 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
     // Run escalation checks and SIEM ingestion
     try {
       const baseUrl = Deno.env.get("SUPABASE_URL");
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${anonKey}` };
+      const cronSecret = Deno.env.get("CRON_SECRET");
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${cronSecret}` };
 
       await Promise.all([
         fetch(`${baseUrl}/functions/v1/check-escalations`, { method: "POST", headers }),

@@ -6,12 +6,33 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function isSafeWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!['https:'].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.)/.test(host)) return false;
+    if (['localhost', 'metadata.google.internal', '[::1]'].includes(host)) return false;
+    return true;
+  } catch { return false; }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Authenticate: require CRON_SECRET
+    const CRON_SECRET = Deno.env.get("CRON_SECRET");
+    const authHeader = req.headers.get("Authorization");
+    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -79,13 +100,13 @@ serve(async (req) => {
           const config = channel.config as any;
           const message = `⚡ *Escalation Alert*\n${alerts.length} ${severities.join("/")} alerts auto-escalated by rule "${rule.name}" after ${minutesThreshold}min without acknowledgment.`;
 
-          if (channel.channel_type === "slack" && config.webhook_url) {
+          if (channel.channel_type === "slack" && config.webhook_url && isSafeWebhookUrl(config.webhook_url)) {
             await fetch(config.webhook_url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ text: message }),
             });
-          } else if (channel.channel_type === "discord" && config.webhook_url) {
+          } else if (channel.channel_type === "discord" && config.webhook_url && isSafeWebhookUrl(config.webhook_url)) {
             await fetch(config.webhook_url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },

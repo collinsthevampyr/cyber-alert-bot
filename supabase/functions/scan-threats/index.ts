@@ -6,6 +6,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function isSafeWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!['https:'].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.)/.test(host)) return false;
+    if (['localhost', 'metadata.google.internal', '[::1]'].includes(host)) return false;
+    return true;
+  } catch { return false; }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -268,7 +279,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
               const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
               const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
 
-              if (channel.channel_type === "slack" && chConfig.webhook_url) {
+              if (channel.channel_type === "slack" && chConfig.webhook_url && isSafeWebhookUrl(chConfig.webhook_url)) {
                 await fetch(chConfig.webhook_url, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -276,7 +287,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
                     text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}\n*Source:* ${alert.source_url || "N/A"}${analysisBlock}${remediationBlock}\n\n_Analyzed at ${new Date().toISOString()}_`,
                   }),
                 });
-              } else if (channel.channel_type === "discord" && chConfig.webhook_url) {
+              } else if (channel.channel_type === "discord" && chConfig.webhook_url && isSafeWebhookUrl(chConfig.webhook_url)) {
                 const fields = [
                   { name: "Tool", value: alert.tool_name, inline: true },
                   { name: "Severity", value: alert.severity, inline: true },
@@ -310,7 +321,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
       }
 
       // Legacy Slack webhook
-      if (config.slack_webhook_url) {
+      if (config.slack_webhook_url && isSafeWebhookUrl(config.slack_webhook_url)) {
         for (const alert of alerts) {
           try {
             const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
@@ -337,7 +348,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
 
       if (webhooks) {
         for (const webhook of webhooks) {
-          if (webhook.events?.includes("alert.created")) {
+            if (webhook.events?.includes("alert.created") && isSafeWebhookUrl(webhook.url)) {
             try {
               await fetch(webhook.url, {
                 method: "POST",
