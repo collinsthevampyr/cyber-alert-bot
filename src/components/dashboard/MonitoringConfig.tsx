@@ -37,8 +37,11 @@ export const MonitoringConfig = () => {
   const persistConfig = async (newTools: string[], newFrequency: string) => {
     const userId = userIdRef.current;
     if (!userId) return;
-    const { error } = await supabase.from("monitoring_config").upsert({ user_id: userId, tools_list: newTools, scan_frequency: newFrequency, is_active: true });
+    const upsertData: any = { user_id: userId, tools_list: newTools, scan_frequency: newFrequency, is_active: true };
+    if (configId) upsertData.id = configId;
+    const { data, error } = await supabase.from("monitoring_config").upsert(upsertData).select("id").maybeSingle();
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else if (data && !configId) setConfigId(data.id);
   };
 
   const addTool = () => {
