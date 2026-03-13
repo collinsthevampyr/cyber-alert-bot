@@ -426,7 +426,7 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
         }
 
         // Legacy slack webhook
-        if (config.slack_webhook_url) {
+        if (config.slack_webhook_url && isSafeWebhookUrl(config.slack_webhook_url)) {
           for (const alert of alerts) {
             try {
               const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
