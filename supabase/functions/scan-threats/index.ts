@@ -55,11 +55,15 @@ serve(async (req) => {
     );
 
     // Get user's monitoring config
-    const { data: config, error: configError } = await supabaseClient
+    const { data: configs, error: configError } = await supabaseClient
       .from("monitoring_config")
       .select("*")
       .eq("user_id", userId)
-      .single();
+      .eq("is_active", true)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+
+    const config = configs?.[0] ?? null;
 
     if (configError || !config) {
       console.error("Config error:", configError);

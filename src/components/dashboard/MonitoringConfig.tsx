@@ -13,6 +13,7 @@ const TOOL_NAME_PATTERN = /^[a-zA-Z0-9\s._\-/()]+$/;
 const MAX_TOOLS = 50;
 
 export const MonitoringConfig = () => {
+  const [configId, setConfigId] = useState<string | null>(null);
   const [tools, setTools] = useState<string[]>([]);
   const [newTool, setNewTool] = useState("");
   const [toolError, setToolError] = useState<string | null>(null);
@@ -29,15 +30,18 @@ export const MonitoringConfig = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     userIdRef.current = user.id;
-    const { data } = await supabase.from("monitoring_config").select("*").eq("user_id", user.id).single();
-    if (data) { setTools(data.tools_list || []); setFrequency(data.scan_frequency); }
+    const { data } = await supabase.from("monitoring_config").select("*").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+    if (data) { setConfigId(data.id); setTools(data.tools_list || []); setFrequency(data.scan_frequency); }
   };
 
   const persistConfig = async (newTools: string[], newFrequency: string) => {
     const userId = userIdRef.current;
     if (!userId) return;
-    const { error } = await supabase.from("monitoring_config").upsert({ user_id: userId, tools_list: newTools, scan_frequency: newFrequency, is_active: true });
+    const upsertData: any = { user_id: userId, tools_list: newTools, scan_frequency: newFrequency, is_active: true };
+    if (configId) upsertData.id = configId;
+    const { data, error } = await supabase.from("monitoring_config").upsert(upsertData).select("id").maybeSingle();
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
+    else if (data && !configId) setConfigId(data.id);
   };
 
   const addTool = () => {
