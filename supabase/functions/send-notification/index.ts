@@ -106,6 +106,7 @@ async function sendToChannel(channel: any, alert: AlertData): Promise<{ success:
   try {
     switch (channel.channel_type) {
       case "slack": {
+        if (!isSafeWebhookUrl(config.webhook_url)) return { success: false, error: "Unsafe webhook URL blocked" };
         const resp = await fetch(config.webhook_url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
