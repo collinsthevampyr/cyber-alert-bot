@@ -21,7 +21,7 @@ export const MonitoringConfig = () => {
   const [scanLoading, setScanLoading] = useState(false);
   const { toast } = useToast();
 
-  const userIdRef = React.useRef<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
 
   useEffect(() => { loadConfig(); }, []);
 
