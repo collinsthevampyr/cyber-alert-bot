@@ -100,7 +100,7 @@ serve(async (req) => {
           const config = channel.config as any;
           const message = `⚡ *Escalation Alert*\n${alerts.length} ${severities.join("/")} alerts auto-escalated by rule "${rule.name}" after ${minutesThreshold}min without acknowledgment.`;
 
-          if (channel.channel_type === "slack" && config.webhook_url) {
+          if (channel.channel_type === "slack" && config.webhook_url && isSafeWebhookUrl(config.webhook_url)) {
             await fetch(config.webhook_url, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
