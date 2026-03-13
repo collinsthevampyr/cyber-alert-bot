@@ -279,7 +279,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
               const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
               const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
 
-              if (channel.channel_type === "slack" && chConfig.webhook_url) {
+              if (channel.channel_type === "slack" && chConfig.webhook_url && isSafeWebhookUrl(chConfig.webhook_url)) {
                 await fetch(chConfig.webhook_url, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
