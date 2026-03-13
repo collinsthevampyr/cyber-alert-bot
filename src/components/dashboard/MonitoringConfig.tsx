@@ -21,13 +21,23 @@ export const MonitoringConfig = () => {
   const [scanLoading, setScanLoading] = useState(false);
   const { toast } = useToast();
 
+  const userIdRef = React.useRef<string | null>(null);
+
   useEffect(() => { loadConfig(); }, []);
 
   const loadConfig = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    userIdRef.current = user.id;
     const { data } = await supabase.from("monitoring_config").select("*").eq("user_id", user.id).single();
     if (data) { setTools(data.tools_list || []); setFrequency(data.scan_frequency); }
+  };
+
+  const persistConfig = async (newTools: string[], newFrequency: string) => {
+    const userId = userIdRef.current;
+    if (!userId) return;
+    const { error } = await supabase.from("monitoring_config").upsert({ user_id: userId, tools_list: newTools, scan_frequency: newFrequency, is_active: true });
+    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
   };
 
   const addTool = () => {
@@ -37,17 +47,22 @@ export const MonitoringConfig = () => {
     if (tools.includes(t)) { setToolError("Already added"); return; }
     if (tools.length >= MAX_TOOLS) { setToolError("Maximum reached"); return; }
     setToolError(null);
-    setTools([...tools, t]);
+    const updated = [...tools, t];
+    setTools(updated);
     setNewTool("");
+    persistConfig(updated, frequency);
+  };
+
+  const removeTool = (tool: string) => {
+    const updated = tools.filter(t => t !== tool);
+    setTools(updated);
+    persistConfig(updated, frequency);
   };
 
   const saveConfig = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { error } = await supabase.from("monitoring_config").upsert({ user_id: user.id, tools_list: tools, scan_frequency: frequency, is_active: true });
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else toast({ title: "Saved", description: "Configuration updated." });
+    await persistConfig(tools, frequency);
+    toast({ title: "Saved", description: "Configuration updated." });
     setLoading(false);
   };
 
