@@ -445,7 +445,7 @@ async function handleMcpRequest(body: any, userId: string) {
                 if (alertData.remediation) text += `\n\n🛡️ *Remediation:*\n${alertData.remediation}`;
                 const r = await fetch(cfg.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
                 sendResults.push({ channel: ch.name, type: "slack", success: r.ok });
-              } else if (ch.channel_type === "discord" && cfg.webhook_url) {
+              } else if (ch.channel_type === "discord" && cfg.webhook_url && isSafeWebhookUrl(cfg.webhook_url)) {
                 const fields = [
                   { name: "Tool", value: alertData.tool_name, inline: true },
                   { name: "Severity", value: alertData.severity, inline: true },

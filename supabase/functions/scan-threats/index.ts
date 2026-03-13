@@ -348,7 +348,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
 
       if (webhooks) {
         for (const webhook of webhooks) {
-          if (webhook.events?.includes("alert.created")) {
+            if (webhook.events?.includes("alert.created") && isSafeWebhookUrl(webhook.url)) {
             try {
               await fetch(webhook.url, {
                 method: "POST",
