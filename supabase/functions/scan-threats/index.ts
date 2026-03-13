@@ -321,7 +321,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
       }
 
       // Legacy Slack webhook
-      if (config.slack_webhook_url) {
+      if (config.slack_webhook_url && isSafeWebhookUrl(config.slack_webhook_url)) {
         for (const alert of alerts) {
           try {
             const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
