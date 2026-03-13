@@ -389,7 +389,7 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
                 const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
                 const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
 
-                if (ch.channel_type === "slack" && cfg.webhook_url) {
+              if (ch.channel_type === "slack" && cfg.webhook_url && isSafeWebhookUrl(cfg.webhook_url)) {
                   await fetch(cfg.webhook_url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
