@@ -400,6 +400,7 @@ export type Database = {
       monitoring_config: {
         Row: {
           created_at: string
+          custom_ai_config: Json | null
           id: string
           is_active: boolean
           scan_frequency: string
@@ -410,6 +411,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_ai_config?: Json | null
           id?: string
           is_active?: boolean
           scan_frequency?: string
@@ -420,6 +422,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_ai_config?: Json | null
           id?: string
           is_active?: boolean
           scan_frequency?: string
