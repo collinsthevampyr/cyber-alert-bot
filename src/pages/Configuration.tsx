@@ -1,6 +1,7 @@
 import { MonitoringConfig } from "@/components/dashboard/MonitoringConfig";
 import { NotificationChannels } from "@/components/dashboard/NotificationChannels";
 import { N8nIntegration } from "@/components/dashboard/N8nIntegration";
+import { AIProviderConfig } from "@/components/dashboard/AIProviderConfig";
 
 const Configuration = () => {
   return (
@@ -13,6 +14,10 @@ const Configuration = () => {
       <div className="grid lg:grid-cols-2 gap-6">
         <MonitoringConfig />
         <NotificationChannels />
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <AIProviderConfig />
       </div>
 
       <N8nIntegration />

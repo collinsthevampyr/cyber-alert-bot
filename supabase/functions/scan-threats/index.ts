@@ -17,13 +17,51 @@ function isSafeWebhookUrl(url: string): boolean {
   } catch { return false; }
 }
 
+interface AIConfig {
+  url: string;
+  apiKey: string;
+  model: string;
+}
+
+function getAIConfig(customAiConfig: any): AIConfig {
+  if (customAiConfig?.enabled && customAiConfig?.api_key) {
+    return {
+      url: "https://api.openai.com/v1/chat/completions",
+      apiKey: customAiConfig.api_key,
+      model: customAiConfig.model || "gpt-4o",
+    };
+  }
+  return {
+    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+    apiKey: Deno.env.get("LOVABLE_API_KEY") ?? "",
+    model: "google/gemini-2.5-flash",
+  };
+}
+
+async function callAI(aiConfig: AIConfig, messages: any[]): Promise<any> {
+  const response = await fetch(aiConfig.url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${aiConfig.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model: aiConfig.model, messages }),
+  });
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("AI request failed:", response.status, errText);
+    return null;
+  }
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Authenticate the caller via JWT
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -80,6 +118,11 @@ serve(async (req) => {
       );
     }
 
+    // Determine AI provider (user's OpenAI key or built-in)
+    const aiConfig = getAIConfig(config.custom_ai_config);
+    const usingCustomAI = config.custom_ai_config?.enabled && config.custom_ai_config?.api_key;
+    console.log(`Using AI provider: ${usingCustomAI ? "OpenAI (user key)" : "Built-in"}`);
+
     // Create scan history record
     const { data: scan, error: scanError } = await supabaseClient
       .from("scan_history")
@@ -102,25 +145,16 @@ serve(async (req) => {
     console.log("Scan created:", scan.id);
 
     // Analyze each tool using AI
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const alerts = [];
+    const alerts: any[] = [];
 
     for (const tool of config.tools_list) {
       console.log("Analyzing threats for:", tool);
 
       try {
-        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [
-              {
-                role: "system",
-                content: `You are a cybersecurity threat analyst. Analyze recent security threats, vulnerabilities, and breaches related to specific technologies. 
+        const content = await callAI(aiConfig, [
+          {
+            role: "system",
+            content: `You are a cybersecurity threat analyst. Analyze recent security threats, vulnerabilities, and breaches related to specific technologies. 
                 
 Return ONLY valid JSON in this exact format (no markdown, no backticks):
 {
@@ -135,10 +169,10 @@ Return ONLY valid JSON in this exact format (no markdown, no backticks):
 }
 
 If no recent threats found, return: {"hasThreats": false, "threats": []}`,
-              },
-              {
-                role: "user",
-                content: `Search for recent cybersecurity threats, vulnerabilities, CVEs, and security advisories related to: ${tool}. 
+          },
+          {
+            role: "user",
+            content: `Search for recent cybersecurity threats, vulnerabilities, CVEs, and security advisories related to: ${tool}. 
                 
 Focus on:
 - Security vulnerabilities and CVEs
@@ -148,18 +182,8 @@ Focus on:
 - Official security advisories
 
 Only include threats from the last 7 days. If no recent threats exist, indicate hasThreats as false.`,
-              },
-            ],
-          }),
-        });
-
-        if (!aiResponse.ok) {
-          console.error(`AI request failed for ${tool}:`, await aiResponse.text());
-          continue;
-        }
-
-        const aiData = await aiResponse.json();
-        const content = aiData.choices?.[0]?.message?.content;
+          },
+        ]);
 
         if (!content) {
           console.log(`No AI response for ${tool}`);
@@ -221,54 +245,40 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
       for (const alert of alerts) {
         try {
           console.log(`🤖 Auto-analyzing alert ${alert.id}...`);
-          const analysisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a senior cybersecurity analyst. Return ONLY valid JSON (no markdown, no backticks):
+          const analysisContent = await callAI(aiConfig, [
+            {
+              role: "system",
+              content: `You are a senior cybersecurity analyst. Return ONLY valid JSON (no markdown, no backticks):
 {
   "analysis": "Detailed analysis of the threat (3-5 paragraphs)",
   "remediation": "Step-by-step remediation as numbered steps"
 }`,
-                },
-                {
-                  role: "user",
-                  content: `Analyze this cybersecurity alert:\n\nTool: ${alert.tool_name}\nSeverity: ${alert.severity}\nSummary: ${alert.summary}\nSource: ${alert.source_url || "N/A"}\nUser's Stack: ${config.tools_list.join(", ")}`,
-                },
-              ],
-            }),
-          });
+            },
+            {
+              role: "user",
+              content: `Analyze this cybersecurity alert:\n\nTool: ${alert.tool_name}\nSeverity: ${alert.severity}\nSummary: ${alert.summary}\nSource: ${alert.source_url || "N/A"}\nUser's Stack: ${config.tools_list.join(", ")}`,
+            },
+          ]);
 
-          if (analysisResponse.ok) {
-            const analysisData = await analysisResponse.json();
-            const analysisContent = analysisData.choices?.[0]?.message?.content;
-            if (analysisContent) {
-              try {
-                const clean = analysisContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-                const parsed = JSON.parse(clean);
-                await supabaseClient.from("alerts").update({
-                  analysis: parsed.analysis,
-                  remediation: parsed.remediation,
-                }).eq("id", alert.id);
-                alert.analysis = parsed.analysis;
-                alert.remediation = parsed.remediation;
-                console.log(`✅ Auto-analysis complete for alert ${alert.id}`);
-              } catch { console.error(`Failed to parse analysis for alert ${alert.id}`); }
-            }
+          if (analysisContent) {
+            try {
+              const clean = analysisContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+              const parsed = JSON.parse(clean);
+              await supabaseClient.from("alerts").update({
+                analysis: parsed.analysis,
+                remediation: parsed.remediation,
+              }).eq("id", alert.id);
+              alert.analysis = parsed.analysis;
+              alert.remediation = parsed.remediation;
+              console.log(`✅ Auto-analysis complete for alert ${alert.id}`);
+            } catch { console.error(`Failed to parse analysis for alert ${alert.id}`); }
           }
         } catch (e) {
           console.error(`Auto-analysis error for ${alert.id}:`, e);
         }
       }
 
-      // Send to notification channels with "AI Agent Analysis" title
+      // Send to notification channels
       const { data: channels } = await supabaseClient
         .from("notification_channels")
         .select("*")
@@ -352,7 +362,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
 
       if (webhooks) {
         for (const webhook of webhooks) {
-            if (webhook.events?.includes("alert.created") && isSafeWebhookUrl(webhook.url)) {
+          if (webhook.events?.includes("alert.created") && isSafeWebhookUrl(webhook.url)) {
             try {
               const bodyStr = JSON.stringify({
                 event: "alert.created",
