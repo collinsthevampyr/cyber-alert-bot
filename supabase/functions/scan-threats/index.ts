@@ -319,7 +319,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
                       color: ({ Critical: 0xff0000, High: 0xff6600, Medium: 0xffcc00, Low: 0x00cc00 } as any)[alert.severity] || 0x808080,
                       fields,
                       timestamp: new Date().toISOString(),
-                      footer: { text: "SecureWatch AI Agent" },
+                      footer: { text: "Gardien AI Agent" },
                     }],
                   }),
                 });
