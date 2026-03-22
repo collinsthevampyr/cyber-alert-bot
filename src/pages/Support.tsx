@@ -43,7 +43,7 @@ const Support = () => {
 
   const loadSupportEmail = async () => {
     const { data } = await supabase.from("site_content").select("content_value").eq("content_key", "support_email").maybeSingle();
-    setSupportEmail(data?.content_value || "support@securewatch.io");
+    setSupportEmail(data?.content_value || "support@gardien.io");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

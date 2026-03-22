@@ -141,7 +141,7 @@ async function sendToChannel(channel: any, alert: AlertData): Promise<{ success:
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: config.from_address || "SecureWatch <alerts@securewatch.io>",
+            from: config.from_address || "Gardien <alerts@gardien.io>",
             to: [config.email_address],
             subject: `🔔 [${alert.severity}] Security Alert: ${alert.tool_name}`,
             html: formatEmailHtml(alert),
