@@ -59,7 +59,7 @@ const Login = () => {
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2.5 mb-8">
           <Shield className="w-6 h-6 text-primary" />
-          <span className="text-lg font-semibold tracking-tight text-foreground">SecureWatch</span>
+          <span className="text-lg font-semibold tracking-tight text-foreground">Gardien</span>
         </div>
 
         <Card className="border-border">
