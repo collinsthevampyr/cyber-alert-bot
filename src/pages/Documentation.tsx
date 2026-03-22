@@ -31,9 +31,9 @@ const Documentation = () => {
       content: (
         <div className="space-y-6">
           <div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">Welcome to SecureWatch</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-2">Welcome to Gardien</h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              SecureWatch is a cyber threat monitoring platform that scans for vulnerabilities across your configured tools and delivers intelligent alerts through multiple channels.
+              Gardien is a cyber threat monitoring platform that scans for vulnerabilities across your configured tools and delivers intelligent alerts through multiple channels.
             </p>
           </div>
           <div className="space-y-3">

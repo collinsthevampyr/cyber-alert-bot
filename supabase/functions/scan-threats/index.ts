@@ -319,7 +319,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
                       color: ({ Critical: 0xff0000, High: 0xff6600, Medium: 0xffcc00, Low: 0x00cc00 } as any)[alert.severity] || 0x808080,
                       fields,
                       timestamp: new Date().toISOString(),
-                      footer: { text: "SecureWatch AI Agent" },
+                      footer: { text: "Gardien AI Agent" },
                     }],
                   }),
                 });
@@ -376,7 +376,7 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
                 const encoder = new TextEncoder();
                 const key = await crypto.subtle.importKey('raw', encoder.encode(webhook.secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
                 const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(bodyStr));
-                headers['X-SecureWatch-Signature'] = `sha256=${Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
+                headers['X-Gardien-Signature'] = `sha256=${Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
               }
               await fetch(webhook.url, { method: "POST", headers, body: bodyStr });
               await supabaseClient.from("webhooks").update({ last_triggered_at: new Date().toISOString() }).eq("id", webhook.id);

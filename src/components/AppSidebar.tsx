@@ -45,7 +45,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-primary shrink-0" />
-              {!collapsed && <span className="font-semibold tracking-tight text-foreground">SecureWatch</span>}
+              {!collapsed && <span className="font-semibold tracking-tight text-foreground">Gardien</span>}
             </div>
           </SidebarGroupLabel>
           <SidebarGroupContent>

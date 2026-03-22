@@ -43,7 +43,7 @@ async function handleMcpRequest(body: any, userId: string) {
       result: {
         protocolVersion: "2024-11-05",
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "SecureWatch AI", version: "1.0.0" },
+        serverInfo: { name: "Gardien AI", version: "1.0.0" },
       },
     };
   }
@@ -506,7 +506,7 @@ Deno.serve(async (req) => {
   // GET for server info
   if (req.method === "GET") {
     return new Response(JSON.stringify({
-      name: "SecureWatch AI MCP Server",
+      name: "Gardien AI MCP Server",
       version: "1.0.0",
       description: "MCP server for cybersecurity threat monitoring. Authenticate with x-api-key header.",
       capabilities: ["list_alerts", "trigger_scan", "get_scan_history", "get_config", "update_config", "add_tool", "remove_tool", "get_alert_summary", "analyze_alert", "analyze_all_unanalyzed", "send_alert", "list_notification_channels"],

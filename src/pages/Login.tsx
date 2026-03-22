@@ -59,7 +59,7 @@ const Login = () => {
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2.5 mb-8">
           <Shield className="w-6 h-6 text-primary" />
-          <span className="text-lg font-semibold tracking-tight text-foreground">SecureWatch</span>
+          <span className="text-lg font-semibold tracking-tight text-foreground">Gardien</span>
         </div>
 
         <Card className="border-border">
@@ -123,7 +123,7 @@ const Login = () => {
                 </button>
 
                 <p className="mt-4 text-center text-sm text-muted-foreground">
-                  New to SecureWatch?{" "}
+                  New to Gardien?{" "}
                   <button onClick={() => navigate("/signup")} className="text-foreground hover:text-primary transition-colors underline-offset-4 hover:underline">
                     Create an account
                   </button>
@@ -172,7 +172,7 @@ const Login = () => {
                   </Button>
                 </form>
                 <p className="mt-4 text-center text-sm text-muted-foreground">
-                  New to SecureWatch?{" "}
+                  New to Gardien?{" "}
                   <button onClick={() => navigate("/signup")} className="text-foreground hover:text-primary transition-colors underline-offset-4 hover:underline">
                     Create an account
                   </button>

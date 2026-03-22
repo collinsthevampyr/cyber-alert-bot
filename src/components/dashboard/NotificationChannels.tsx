@@ -73,10 +73,10 @@ export const NotificationChannels = () => {
   const test = async (ch: Channel) => {
     try {
       if (ch.channel_type === "slack") {
-        const r = await fetch(ch.config.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "✓ SecureWatch test notification" }) });
+        const r = await fetch(ch.config.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "✓ Gardien test notification" }) });
         if (r.ok) toast({ title: "Sent", description: "Test delivered to Slack." }); else throw new Error("Failed");
       } else if (ch.channel_type === "discord") {
-        const r = await fetch(ch.config.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [{ title: "Test Notification", description: "SecureWatch connected.", color: 0x3d9a50 }] }) });
+        const r = await fetch(ch.config.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [{ title: "Test Notification", description: "Gardien connected.", color: 0x3d9a50 }] }) });
         if (r.ok) toast({ title: "Sent", description: "Test delivered to Discord." }); else throw new Error("Failed");
       } else {
         toast({ title: "Email", description: `Notifications will be sent to ${ch.config.email_address}` });
