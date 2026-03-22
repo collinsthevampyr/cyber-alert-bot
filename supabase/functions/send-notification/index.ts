@@ -64,7 +64,7 @@ function formatDiscordEmbed(alert: AlertData) {
       color: colorMap[alert.severity.toLowerCase()] || 0x808080,
       fields,
       timestamp: alert.detected_at,
-      footer: { text: "SecureWatch AI" },
+      footer: { text: "Gardien AI" },
     }],
   };
 }
