@@ -138,10 +138,13 @@ serve(async (req) => {
   }
 
   try {
-    // Authenticate: require CRON_SECRET
+    // Authenticate: require CRON_SECRET or valid anon key (from pg_cron)
     const CRON_SECRET = Deno.env.get("CRON_SECRET");
+    const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
     const authHeader = req.headers.get("Authorization");
-    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+    const token = authHeader?.replace("Bearer ", "");
+    const isAuthorized = (CRON_SECRET && token === CRON_SECRET) || (ANON_KEY && token === ANON_KEY);
+    if (!isAuthorized) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
