@@ -123,7 +123,7 @@ const Login = () => {
                 </button>
 
                 <p className="mt-4 text-center text-sm text-muted-foreground">
-                  New to SecureWatch?{" "}
+                  New to Gardien?{" "}
                   <button onClick={() => navigate("/signup")} className="text-foreground hover:text-primary transition-colors underline-offset-4 hover:underline">
                     Create an account
                   </button>
