@@ -239,7 +239,7 @@ serve(async (req) => {
                   const encoder = new TextEncoder();
                   const key = await crypto.subtle.importKey('raw', encoder.encode(webhook.secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
                   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(bodyStr));
-                  headers['X-SecureWatch-Signature'] = `sha256=${Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
+                  headers['X-Gardien-Signature'] = `sha256=${Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')}`;
                 }
                 await fetch(webhook.url, { method: "POST", headers, body: bodyStr });
                 await supabaseAdmin.from("webhooks").update({ last_triggered_at: new Date().toISOString() }).eq("id", webhook.id);

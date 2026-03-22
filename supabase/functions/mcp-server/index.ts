@@ -506,7 +506,7 @@ Deno.serve(async (req) => {
   // GET for server info
   if (req.method === "GET") {
     return new Response(JSON.stringify({
-      name: "SecureWatch AI MCP Server",
+      name: "Gardien AI MCP Server",
       version: "1.0.0",
       description: "MCP server for cybersecurity threat monitoring. Authenticate with x-api-key header.",
       capabilities: ["list_alerts", "trigger_scan", "get_scan_history", "get_config", "update_config", "add_tool", "remove_tool", "get_alert_summary", "analyze_alert", "analyze_all_unanalyzed", "send_alert", "list_notification_channels"],

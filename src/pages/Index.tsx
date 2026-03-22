@@ -171,7 +171,7 @@ const Index = () => {
           <div className="container mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <Shield className="w-3.5 h-3.5 text-primary" />
-              <span>© 2026 SecureWatch</span>
+              <span>© 2026 Gardien</span>
             </div>
             <div className="flex gap-4">
               <button onClick={() => navigate("/docs")} className="hover:text-foreground transition-colors">Docs</button>
