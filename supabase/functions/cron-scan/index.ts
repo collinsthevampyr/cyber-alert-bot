@@ -114,6 +114,7 @@ async function autoCorrelateAlerts(supabase: any, userId: string, newAlerts: any
 
 // Maps frequency config to minutes
 const FREQUENCY_MINUTES: Record<string, number> = {
+  "5min": 5,
   "15min": 15,
   "30min": 30,
   "hourly": 60,

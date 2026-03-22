@@ -122,8 +122,8 @@ export const MonitoringConfig = () => {
           <Select value={frequency} onValueChange={setFrequency}>
             <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="5min">Every 5 min</SelectItem>
               <SelectItem value="15min">Every 15 min</SelectItem>
-              <SelectItem value="30min">Every 30 min</SelectItem>
               <SelectItem value="hourly">Hourly</SelectItem>
               <SelectItem value="6hours">Every 6 hours</SelectItem>
               <SelectItem value="daily">Daily</SelectItem>
