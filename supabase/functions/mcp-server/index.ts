@@ -43,7 +43,7 @@ async function handleMcpRequest(body: any, userId: string) {
       result: {
         protocolVersion: "2024-11-05",
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "SecureWatch AI", version: "1.0.0" },
+        serverInfo: { name: "Gardien AI", version: "1.0.0" },
       },
     };
   }
