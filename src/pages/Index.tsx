@@ -16,7 +16,7 @@ const Index = () => {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Shield className="w-6 h-6 text-primary" />
-            <span className="text-lg font-semibold tracking-tight text-foreground">SecureWatch</span>
+            <span className="text-lg font-semibold tracking-tight text-foreground">Gardien</span>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => navigate("/docs")} className="text-muted-foreground hover:text-foreground">
