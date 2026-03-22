@@ -95,7 +95,7 @@ function formatEmailHtml(alert: AlertData): string {
         ${alert.source_url ? `<p><a href="${alert.source_url}" style="color: #0066cc;">View Source →</a></p>` : ""}
         ${alert.analysis ? `<div style="margin-top: 16px; padding: 12px; background: #e8f4f8; border-radius: 4px; border-left: 4px solid #0088cc;"><strong>📊 Analysis:</strong><br/><pre style="white-space: pre-wrap; font-family: inherit;">${alert.analysis}</pre></div>` : ""}
         ${alert.remediation ? `<div style="margin-top: 16px; padding: 12px; background: #e8f8e8; border-radius: 4px; border-left: 4px solid #00cc44;"><strong>🛡️ Remediation:</strong><br/><pre style="white-space: pre-wrap; font-family: inherit;">${alert.remediation}</pre></div>` : ""}
-        <p style="color: #888; font-size: 12px; margin-top: 20px;">Sent by SecureWatch AI</p>
+        <p style="color: #888; font-size: 12px; margin-top: 20px;">Sent by Gardien AI</p>
       </div>
     </div>`;
 }
