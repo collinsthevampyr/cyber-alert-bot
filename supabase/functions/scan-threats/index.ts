@@ -23,19 +23,15 @@ interface AIConfig {
   model: string;
 }
 
-function getAIConfig(customAiConfig: any): AIConfig {
-  if (customAiConfig?.enabled && customAiConfig?.api_key) {
+function getAIConfig(customAiConfig: any): AIConfig | null {
+  if (customAiConfig?.api_key) {
     return {
       url: "https://api.openai.com/v1/chat/completions",
       apiKey: customAiConfig.api_key,
       model: customAiConfig.model || "gpt-4o",
     };
   }
-  return {
-    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-    apiKey: Deno.env.get("LOVABLE_API_KEY") ?? "",
-    model: "google/gemini-2.5-flash",
-  };
+  return null;
 }
 
 async function callAI(aiConfig: AIConfig, messages: any[]): Promise<any> {
