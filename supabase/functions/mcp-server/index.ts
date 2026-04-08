@@ -197,17 +197,24 @@ async function handleMcpRequest(body: any, userId: string) {
             .select()
             .single();
 
-          // Run AI analysis
-          const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+          // Require user's own AI API key
+          const mcpAiConfig = config.custom_ai_config as any;
+          if (!mcpAiConfig?.api_key) {
+            result = { error: "AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider." };
+            break;
+          }
+          const mcpAiUrl = "https://api.openai.com/v1/chat/completions";
+          const mcpAiKey = mcpAiConfig.api_key;
+          const mcpAiModel = mcpAiConfig.model || "gpt-4o";
           const alerts: any[] = [];
 
           for (const tool of config.tools_list) {
             try {
-              const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              const aiResponse = await fetch(mcpAiUrl, {
                 method: "POST",
-                headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+                headers: { Authorization: `Bearer ${mcpAiKey}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  model: "google/gemini-2.5-flash",
+                  model: mcpAiModel,
                   messages: [
                     { role: "system", content: `Cybersecurity analyst. Return JSON only: {"hasThreats": boolean, "threats": [{"severity": "Critical"|"High"|"Medium"|"Low", "summary": "max 200 chars", "source": "url"}]}` },
                     { role: "user", content: `Recent cybersecurity threats for: ${tool}. Last 7 days.` },
