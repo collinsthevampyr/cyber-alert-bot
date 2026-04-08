@@ -114,10 +114,15 @@ serve(async (req) => {
       );
     }
 
-    // Determine AI provider (user's OpenAI key or built-in)
+    // Require user's own AI API key
     const aiConfig = getAIConfig(config.custom_ai_config);
-    const usingCustomAI = config.custom_ai_config?.enabled && config.custom_ai_config?.api_key;
-    console.log(`Using AI provider: ${usingCustomAI ? "OpenAI (user key)" : "Built-in"}`);
+    if (!aiConfig) {
+      return new Response(
+        JSON.stringify({ error: "AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    console.log(`Using AI provider: OpenAI (user key)`);
 
     // Create scan history record
     const { data: scan, error: scanError } = await supabaseClient

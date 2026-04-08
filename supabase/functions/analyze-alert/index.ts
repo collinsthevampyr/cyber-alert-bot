@@ -105,7 +105,13 @@ serve(async (req) => {
       .maybeSingle();
 
     const aiConfig = getAIConfig(config?.custom_ai_config);
-    console.log(`Using AI provider: ${config?.custom_ai_config?.enabled ? "OpenAI (user key)" : "Built-in"}`);
+    if (!aiConfig) {
+      return new Response(JSON.stringify({ error: "AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    console.log(`Using AI provider: OpenAI (user key)`);
 
     const aiResponse = await fetch(aiConfig.url, {
       method: "POST",
