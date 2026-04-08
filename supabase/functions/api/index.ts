@@ -153,16 +153,22 @@ serve(async (req) => {
 
       if (scanError) return errorResponse("Failed to create scan", 500);
 
-      // Process tools with AI (same logic as scan-threats)
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      // Require user's own AI API key
+      const userAiConfig = config.custom_ai_config as any;
+      if (!userAiConfig?.api_key) {
+        return errorResponse("AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider.", 400);
+      }
+      const aiUrl = "https://api.openai.com/v1/chat/completions";
+      const aiApiKey = userAiConfig.api_key;
+      const aiModel = userAiConfig.model || "gpt-4o";
       const alerts: any[] = [];
 
       for (const tool of config.tools_list) {
         try {
-          const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const aiResponse = await fetch(aiUrl, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${aiApiKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
