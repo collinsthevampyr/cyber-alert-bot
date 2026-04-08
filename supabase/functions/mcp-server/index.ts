@@ -411,18 +411,23 @@ async function handleMcpRequest(body: any, userId: string) {
           }
 
           const results: any[] = [];
+          const { data: bulkCfg } = await supabaseAdmin.from("monitoring_config").select("tools_list, custom_ai_config").eq("user_id", userId).single();
+          const bulkAiCfg = bulkCfg?.custom_ai_config as any;
+          if (!bulkAiCfg?.api_key) {
+            result = { error: "AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider." };
+            break;
+          }
+
           for (const a of unanalyzed) {
             try {
-              const { data: cfgData } = await supabaseAdmin.from("monitoring_config").select("tools_list").eq("user_id", userId).single();
-              const KEY = Deno.env.get("LOVABLE_API_KEY");
-              const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              const r = await fetch("https://api.openai.com/v1/chat/completions", {
                 method: "POST",
-                headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json" },
+                headers: { Authorization: `Bearer ${bulkAiCfg.api_key}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  model: "google/gemini-2.5-flash",
+                  model: bulkAiCfg.model || "gpt-4o",
                   messages: [
                     { role: "system", content: `Senior cybersecurity analyst. Return ONLY JSON: {"analysis": "detailed analysis", "remediation": "numbered steps"}` },
-                    { role: "user", content: `Alert: Tool=${a.tool_name}, Severity=${a.severity}, Summary=${a.summary}, Stack=${cfgData?.tools_list?.join(", ") || "Unknown"}` },
+                    { role: "user", content: `Alert: Tool=${a.tool_name}, Severity=${a.severity}, Summary=${a.summary}, Stack=${bulkCfg?.tools_list?.join(", ") || "Unknown"}` },
                   ],
                 }),
               });
