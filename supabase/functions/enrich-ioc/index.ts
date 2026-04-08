@@ -135,7 +135,7 @@ serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: userAiConfig.model || "gpt-4o",
             messages: [
               {
                 role: "system",
