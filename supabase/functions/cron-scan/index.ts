@@ -157,7 +157,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     console.log("⏰ Cron scan triggered at", new Date().toISOString());
 
     // Get all active monitoring configs
