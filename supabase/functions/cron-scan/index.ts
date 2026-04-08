@@ -340,14 +340,14 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
       for (const alert of alerts) {
         try {
           console.log(`🤖 Auto-analyzing alert ${alert.id}...`);
-          const analysisResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const analysisResponse = await fetch(aiUrl, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${aiApiKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: aiModel,
               messages: [
                 {
                   role: "system",
