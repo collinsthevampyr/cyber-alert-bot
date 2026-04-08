@@ -214,16 +214,27 @@ serve(async (req) => {
 
       const alerts: any[] = [];
 
+      // Get user's AI config
+      const userAiConfig = config.custom_ai_config as any;
+      if (!userAiConfig?.api_key) {
+        console.log(`Skipping user ${config.user_id} — no AI API key configured`);
+        await supabase.from("scan_history").update({ status: "completed", scan_completed_at: new Date().toISOString(), alerts_found: 0 }).eq("id", scan.id);
+        continue;
+      }
+      const aiUrl = "https://api.openai.com/v1/chat/completions";
+      const aiApiKey = userAiConfig.api_key;
+      const aiModel = userAiConfig.model || "gpt-4o";
+
       for (const tool of config.tools_list) {
         try {
-          const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const aiResponse = await fetch(aiUrl, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${aiApiKey}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: aiModel,
               messages: [
                 {
                   role: "system",
