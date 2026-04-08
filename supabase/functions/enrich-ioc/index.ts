@@ -116,18 +116,26 @@ serve(async (req) => {
       }
     }
 
-    // 3. AI-powered MITRE ATT&CK mapping + analysis (always available)
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (LOVABLE_API_KEY) {
+    // 3. AI-powered MITRE ATT&CK mapping + analysis (requires user's API key)
+    const { data: monConfig } = await supabaseAdmin
+      .from("monitoring_config")
+      .select("custom_ai_config")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const userAiConfig = monConfig?.custom_ai_config as any;
+    if (userAiConfig?.api_key) {
       try {
-        const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            Authorization: `Bearer ${userAiConfig.api_key}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: userAiConfig.model || "gpt-4o",
             messages: [
               {
                 role: "system",

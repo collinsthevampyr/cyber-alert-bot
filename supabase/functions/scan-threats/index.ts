@@ -23,19 +23,15 @@ interface AIConfig {
   model: string;
 }
 
-function getAIConfig(customAiConfig: any): AIConfig {
-  if (customAiConfig?.enabled && customAiConfig?.api_key) {
+function getAIConfig(customAiConfig: any): AIConfig | null {
+  if (customAiConfig?.api_key) {
     return {
       url: "https://api.openai.com/v1/chat/completions",
       apiKey: customAiConfig.api_key,
       model: customAiConfig.model || "gpt-4o",
     };
   }
-  return {
-    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-    apiKey: Deno.env.get("LOVABLE_API_KEY") ?? "",
-    model: "google/gemini-2.5-flash",
-  };
+  return null;
 }
 
 async function callAI(aiConfig: AIConfig, messages: any[]): Promise<any> {
@@ -118,10 +114,15 @@ serve(async (req) => {
       );
     }
 
-    // Determine AI provider (user's OpenAI key or built-in)
+    // Require user's own AI API key
     const aiConfig = getAIConfig(config.custom_ai_config);
-    const usingCustomAI = config.custom_ai_config?.enabled && config.custom_ai_config?.api_key;
-    console.log(`Using AI provider: ${usingCustomAI ? "OpenAI (user key)" : "Built-in"}`);
+    if (!aiConfig) {
+      return new Response(
+        JSON.stringify({ error: "AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    console.log(`Using AI provider: OpenAI (user key)`);
 
     // Create scan history record
     const { data: scan, error: scanError } = await supabaseClient

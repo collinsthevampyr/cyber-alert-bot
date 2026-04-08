@@ -12,19 +12,15 @@ interface AIConfig {
   model: string;
 }
 
-function getAIConfig(customAiConfig: any): AIConfig {
-  if (customAiConfig?.enabled && customAiConfig?.api_key) {
+function getAIConfig(customAiConfig: any): AIConfig | null {
+  if (customAiConfig?.api_key) {
     return {
       url: "https://api.openai.com/v1/chat/completions",
       apiKey: customAiConfig.api_key,
       model: customAiConfig.model || "gpt-4o",
     };
   }
-  return {
-    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-    apiKey: Deno.env.get("LOVABLE_API_KEY") ?? "",
-    model: "google/gemini-2.5-flash",
-  };
+  return null;
 }
 
 serve(async (req) => {
@@ -109,7 +105,13 @@ serve(async (req) => {
       .maybeSingle();
 
     const aiConfig = getAIConfig(config?.custom_ai_config);
-    console.log(`Using AI provider: ${config?.custom_ai_config?.enabled ? "OpenAI (user key)" : "Built-in"}`);
+    if (!aiConfig) {
+      return new Response(JSON.stringify({ error: "AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    console.log(`Using AI provider: OpenAI (user key)`);
 
     const aiResponse = await fetch(aiConfig.url, {
       method: "POST",
