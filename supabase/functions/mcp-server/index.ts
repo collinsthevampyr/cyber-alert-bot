@@ -358,16 +358,21 @@ async function handleMcpRequest(body: any, userId: string) {
 
           const { data: configData } = await supabaseAdmin
             .from("monitoring_config")
-            .select("tools_list")
+            .select("tools_list, custom_ai_config")
             .eq("user_id", userId)
             .single();
 
-          const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
-          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const analyzeAiCfg = configData?.custom_ai_config as any;
+          if (!analyzeAiCfg?.api_key) {
+            result = { error: "AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider." };
+            break;
+          }
+
+          const aiResp = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
-            headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${analyzeAiCfg.api_key}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: analyzeAiCfg.model || "gpt-4o",
               messages: [
                 { role: "system", content: `You are a senior cybersecurity analyst. Return ONLY valid JSON: {"analysis": "detailed threat analysis (3-5 paragraphs)", "remediation": "numbered step-by-step remediation"}` },
                 { role: "user", content: `Analyze alert: Tool=${alertData.tool_name}, Severity=${alertData.severity}, Summary=${alertData.summary}, Source=${alertData.source_url || "N/A"}, Stack=${configData?.tools_list?.join(", ") || "Unknown"}` },
