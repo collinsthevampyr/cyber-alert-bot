@@ -23,10 +23,30 @@ serve(async (req) => {
   }
 
   try {
-    // Authenticate: require CRON_SECRET
+    // Authenticate: accept CRON_SECRET or valid user JWT
     const CRON_SECRET = Deno.env.get("CRON_SECRET");
     const authHeader = req.headers.get("Authorization");
-    if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+    let authenticatedUserId: string | null = null;
+
+    if (CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`) {
+      // Cron/scheduled call - proceed with service role
+    } else if (authHeader?.startsWith("Bearer ")) {
+      // Try user JWT auth (for manual "Test" button calls)
+      const anonClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const token = authHeader.replace("Bearer ", "");
+      const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(token);
+      if (claimsErr || !claimsData?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      authenticatedUserId = claimsData.claims.sub as string;
+    } else {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -40,11 +60,12 @@ serve(async (req) => {
 
     console.log("🔄 SIEM ingestion triggered at", new Date().toISOString());
 
-    // Get all active SIEM integrations
-    const { data: integrations, error } = await supabase
-      .from("siem_integrations")
-      .select("*")
-      .eq("is_active", true);
+    // Get active SIEM integrations (scoped to user if manual test)
+    let query = supabase.from("siem_integrations").select("*").eq("is_active", true);
+    if (authenticatedUserId) {
+      query = query.eq("user_id", authenticatedUserId);
+    }
+    const { data: integrations, error } = await query;
 
     if (error || !integrations?.length) {
       return new Response(JSON.stringify({ message: "No active SIEM integrations" }), {
