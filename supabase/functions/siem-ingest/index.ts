@@ -321,3 +321,10 @@ function mapSeverity(raw: string): string {
   if (lower.includes("med") || lower === "5" || lower === "6" || lower === "7") return "Medium";
   return "Low";
 }
+
+function mapWazuhLevel(level: number): string {
+  if (level >= 12) return "Critical";
+  if (level >= 8) return "High";
+  if (level >= 4) return "Medium";
+  return "Low";
+}
