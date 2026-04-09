@@ -19,6 +19,7 @@ const SIEM_TYPES = [
   { value: "elastic", label: "Elastic SIEM" },
   { value: "qradar", label: "IBM QRadar" },
   { value: "chronicle", label: "Google Chronicle" },
+  { value: "wazuh", label: "Wazuh" },
   { value: "custom", label: "Custom / Syslog" },
 ];
 
