@@ -51,14 +51,17 @@ export const SIEMIntegrations = () => {
     setCreating(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    const resolvedApiKey = siemType === "wazuh" && wazuhUser && wazuhPass
+      ? btoa(`${wazuhUser}:${wazuhPass}`)
+      : apiKey || undefined;
     const { error } = await supabase.from("siem_integrations").insert({
       user_id: user.id,
       name,
       siem_type: siemType,
-      config: { endpoint, api_key: apiKey || undefined },
+      config: { endpoint, api_key: resolvedApiKey },
     });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setName(""); setEndpoint(""); setApiKey(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
+    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
     setCreating(false);
   };
 
