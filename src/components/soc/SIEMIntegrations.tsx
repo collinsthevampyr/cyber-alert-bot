@@ -31,6 +31,8 @@ export const SIEMIntegrations = () => {
   const [siemType, setSiemType] = useState("splunk");
   const [endpoint, setEndpoint] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [wazuhUser, setWazuhUser] = useState("");
+  const [wazuhPass, setWazuhPass] = useState("");
   const [creating, setCreating] = useState(false);
   const { toast } = useToast();
 
