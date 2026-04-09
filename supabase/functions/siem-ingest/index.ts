@@ -199,6 +199,52 @@ serve(async (req) => {
             break;
           }
 
+          case "wazuh": {
+            // Wazuh API: authenticate first, then fetch alerts
+            const baseUrl = config.endpoint.replace(/\/+$/, "");
+            try {
+              // Step 1: Authenticate to get JWT token
+              const authResp = await fetch(`${baseUrl}/security/user/authenticate`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Basic ${config.api_key || ""}`,
+                },
+              });
+              if (!authResp.ok) {
+                console.error(`Wazuh auth error for ${integration.name}: ${authResp.status}`);
+                const body = await authResp.text();
+                console.error("Wazuh auth body:", body);
+                break;
+              }
+              const authData = await authResp.json();
+              const wazuhToken = authData.data?.token;
+              if (!wazuhToken) {
+                console.error(`Wazuh: no token returned for ${integration.name}`);
+                break;
+              }
+
+              // Step 2: Fetch recent alerts
+              const alertsResp = await fetch(`${baseUrl}/alerts?limit=50&sort=-timestamp&q=timestamp>${new Date(Date.now() - 15 * 60 * 1000).toISOString()}`, {
+                headers: { Authorization: `Bearer ${wazuhToken}` },
+              });
+              if (alertsResp.ok) {
+                const alertsData = await alertsResp.json();
+                events = (alertsData.data?.affected_items || []).map((item: any) => ({
+                  summary: item.rule?.description || item.full_log?.substring(0, 200) || "Wazuh alert",
+                  severity: mapWazuhLevel(item.rule?.level || 0),
+                  _raw: JSON.stringify(item),
+                }));
+              } else {
+                console.error(`Wazuh alerts error for ${integration.name}: ${alertsResp.status}`);
+                await alertsResp.text(); // consume body
+              }
+            } catch (wErr) {
+              console.error(`Wazuh error for ${integration.name}:`, wErr);
+            }
+            break;
+          }
+
           case "custom": {
             // Custom syslog/webhook - just fetch the endpoint
             const resp = await fetch(config.endpoint, {
