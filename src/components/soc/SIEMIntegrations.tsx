@@ -31,6 +31,8 @@ export const SIEMIntegrations = () => {
   const [siemType, setSiemType] = useState("splunk");
   const [endpoint, setEndpoint] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [wazuhUser, setWazuhUser] = useState("");
+  const [wazuhPass, setWazuhPass] = useState("");
   const [creating, setCreating] = useState(false);
   const { toast } = useToast();
 
@@ -49,14 +51,17 @@ export const SIEMIntegrations = () => {
     setCreating(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    const resolvedApiKey = siemType === "wazuh" && wazuhUser && wazuhPass
+      ? btoa(`${wazuhUser}:${wazuhPass}`)
+      : apiKey || undefined;
     const { error } = await supabase.from("siem_integrations").insert({
       user_id: user.id,
       name,
       siem_type: siemType,
-      config: { endpoint, api_key: apiKey || undefined },
+      config: { endpoint, api_key: resolvedApiKey },
     });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setName(""); setEndpoint(""); setApiKey(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
+    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
     setCreating(false);
   };
 
@@ -107,7 +112,15 @@ export const SIEMIntegrations = () => {
                 </SelectContent>
               </Select>
               <Input placeholder="Endpoint URL" value={endpoint} onChange={e => setEndpoint(e.target.value)} className="text-sm" />
-              <Input placeholder="API Key (optional)" value={apiKey} onChange={e => setApiKey(e.target.value)} className="text-sm" type="password" />
+              {siemType === "wazuh" ? (
+                <>
+                  <Input placeholder="Wazuh username" value={wazuhUser} onChange={e => setWazuhUser(e.target.value)} className="text-sm" />
+                  <Input placeholder="Wazuh password" value={wazuhPass} onChange={e => setWazuhPass(e.target.value)} className="text-sm" type="password" />
+                  <p className="text-[10px] text-muted-foreground">Credentials will be Base64-encoded automatically</p>
+                </>
+              ) : (
+                <Input placeholder="API Key (optional)" value={apiKey} onChange={e => setApiKey(e.target.value)} className="text-sm" type="password" />
+              )}
               <Button className="w-full text-xs" onClick={createIntegration} disabled={creating || !name.trim() || !endpoint.trim()}>
                 {creating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null} Add Integration
               </Button>
