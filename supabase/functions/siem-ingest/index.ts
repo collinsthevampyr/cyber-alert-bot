@@ -60,11 +60,12 @@ serve(async (req) => {
 
     console.log("🔄 SIEM ingestion triggered at", new Date().toISOString());
 
-    // Get all active SIEM integrations
-    const { data: integrations, error } = await supabase
-      .from("siem_integrations")
-      .select("*")
-      .eq("is_active", true);
+    // Get active SIEM integrations (scoped to user if manual test)
+    let query = supabase.from("siem_integrations").select("*").eq("is_active", true);
+    if (authenticatedUserId) {
+      query = query.eq("user_id", authenticatedUserId);
+    }
+    const { data: integrations, error } = await query;
 
     if (error || !integrations?.length) {
       return new Response(JSON.stringify({ message: "No active SIEM integrations" }), {
