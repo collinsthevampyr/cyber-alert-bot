@@ -27,6 +27,7 @@ export const SIEMIntegrations = () => {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [testingId, setTestingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [siemType, setSiemType] = useState("splunk");
   const [endpoint, setEndpoint] = useState("");
@@ -82,14 +83,31 @@ export const SIEMIntegrations = () => {
   };
 
   const testIntegration = async (integration: any) => {
+    setTestingId(integration.id);
     toast({ title: "Syncing...", description: `Triggering SIEM ingestion for ${integration.name}...` });
+
     try {
-      const { data, error } = await supabase.functions.invoke("siem-ingest");
+      const { data, error } = await supabase.functions.invoke("siem-ingest", {
+        body: { integrationId: integration.id },
+      });
+
       if (error) throw error;
-      toast({ title: "Sync complete", description: `Ingested ${data?.ingested || 0} events` });
+
+      const result = data?.results?.find((item: any) => item.integrationId === integration.id);
+
+      if (!data?.ok) {
+        throw new Error(result?.error || data?.error || "Check SIEM endpoint configuration");
+      }
+
+      toast({
+        title: "Sync complete",
+        description: `Fetched ${result?.fetched || 0} events and ingested ${result?.ingested || 0} alerts`,
+      });
       load();
     } catch (err: any) {
       toast({ title: "Sync failed", description: err.message || "Check SIEM endpoint configuration", variant: "destructive" });
+    } finally {
+      setTestingId(null);
     }
   };
 
@@ -170,8 +188,8 @@ export const SIEMIntegrations = () => {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => testIntegration(int)}>
-                            <Activity className="w-3 h-3 mr-1" /> Test
+                          <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => testIntegration(int)} disabled={testingId === int.id}>
+                            {testingId === int.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Activity className="w-3 h-3 mr-1" />} Test
                           </Button>
                           <Switch checked={int.is_active} onCheckedChange={() => toggleIntegration(int.id, int.is_active)} />
                           <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => deleteIntegration(int.id)}>
