@@ -55,14 +55,18 @@ export const SIEMIntegrations = () => {
     const resolvedApiKey = siemType === "wazuh" && wazuhUser && wazuhPass
       ? btoa(`${wazuhUser}:${wazuhPass}`)
       : apiKey || undefined;
+    const configPayload: any = { endpoint, api_key: resolvedApiKey };
+    if (siemType === "wazuh" && wazuhIndexerUrl.trim()) {
+      configPayload.indexer_url = wazuhIndexerUrl.trim();
+    }
     const { error } = await supabase.from("siem_integrations").insert({
       user_id: user.id,
       name,
       siem_type: siemType,
-      config: { endpoint, api_key: resolvedApiKey },
+      config: configPayload,
     });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
+    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setWazuhIndexerUrl(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
     setCreating(false);
   };
 
