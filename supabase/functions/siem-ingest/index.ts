@@ -1,10 +1,104 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "npm:zod@3.25.76";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
+const BodySchema = z.object({
+  integrationId: z.string().uuid().optional(),
+});
+
+type IntegrationResult = {
+  integrationId: string;
+  name: string;
+  siemType: string;
+  fetched: number;
+  ingested: number;
+  ok: boolean;
+  error?: string;
+  diagnostics?: {
+    mode?: "indexer" | "manager";
+    endpointHost?: string;
+    indexerHost?: string;
+  };
+};
+
+function respond(payload: Record<string, unknown>) {
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: jsonHeaders,
+  });
+}
+
+async function parseBody(req: Request) {
+  if (req.method !== "POST") return {};
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) return {};
+
+  try {
+    return await req.json();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function getHost(value?: string) {
+  if (!value) return undefined;
+
+  try {
+    return new URL(value).host;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseJsonOrText<T = any>(text: string): T | string | null {
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text;
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return "Request timed out";
+  }
+
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+}
+
+function formatWazuhError(error: unknown, mode: "indexer" | "manager") {
+  const message = getErrorMessage(error);
+  const lower = message.toLowerCase();
+
+  if (lower.includes("timed out")) {
+    return mode === "indexer"
+      ? "Could not reach the Wazuh Indexer URL from Lovable Cloud. Check that port 9200 is publicly reachable."
+      : "Could not reach the Wazuh Manager API from Lovable Cloud. Check that the API URL and port are publicly reachable.";
+  }
+
+  return message;
+}
 
 function isSafeExternalUrl(url: string): boolean {
   try {
@@ -23,6 +117,19 @@ serve(async (req) => {
   }
 
   try {
+    const rawBody = await parseBody(req);
+    const parsedBody = BodySchema.safeParse(rawBody ?? {});
+
+    if (!parsedBody.success) {
+      return respond({
+        ok: false,
+        error: "Invalid request payload",
+        details: parsedBody.error.flatten(),
+      });
+    }
+
+    const { integrationId } = parsedBody.data;
+
     // Authenticate: accept CRON_SECRET or valid user JWT
     const CRON_SECRET = Deno.env.get("CRON_SECRET");
     const authHeader = req.headers.get("Authorization");
@@ -40,16 +147,16 @@ serve(async (req) => {
       const token = authHeader.replace("Bearer ", "");
       const { data: claimsData, error: claimsErr } = await anonClient.auth.getClaims(token);
       if (claimsErr || !claimsData?.claims?.sub) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return respond({
+          ok: false,
+          error: "Unauthorized",
         });
       }
       authenticatedUserId = claimsData.claims.sub as string;
     } else {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return respond({
+        ok: false,
+        error: "Unauthorized",
       });
     }
 
@@ -60,30 +167,54 @@ serve(async (req) => {
 
     console.log("🔄 SIEM ingestion triggered at", new Date().toISOString());
 
-    // Get active SIEM integrations (scoped to user if manual test)
-    let query = supabase.from("siem_integrations").select("*").eq("is_active", true);
+    // Get SIEM integrations (manual tests can target a single integration even if inactive)
+    let query = supabase.from("siem_integrations").select("*");
     if (authenticatedUserId) {
       query = query.eq("user_id", authenticatedUserId);
+    }
+    if (integrationId) {
+      query = query.eq("id", integrationId);
+    } else {
+      query = query.eq("is_active", true);
     }
     const { data: integrations, error } = await query;
 
     if (error || !integrations?.length) {
-      return new Response(JSON.stringify({ message: "No active SIEM integrations" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return respond({
+        ok: false,
+        error: integrationId ? "Integration not found" : "No active SIEM integrations",
+        ingested: 0,
+        results: [],
       });
     }
 
     let totalIngested = 0;
+    const results: IntegrationResult[] = [];
 
     for (const integration of integrations) {
       const config = integration.config as any;
+      const result: IntegrationResult = {
+        integrationId: integration.id,
+        name: integration.name,
+        siemType: integration.siem_type,
+        fetched: 0,
+        ingested: 0,
+        ok: true,
+      };
+
       if (!config?.endpoint) {
         console.log(`Skipping ${integration.name}: no endpoint configured`);
+        result.ok = false;
+        result.error = "No endpoint configured";
+        results.push(result);
         continue;
       }
 
       if (!isSafeExternalUrl(config.endpoint)) {
         console.log(`Skipping ${integration.name}: unsafe endpoint URL blocked`);
+        result.ok = false;
+        result.error = "Endpoint URL is blocked for security reasons";
+        results.push(result);
         continue;
       }
 
@@ -204,8 +335,13 @@ serve(async (req) => {
             // 1. Manager API (port 55000): authenticate + fetch via API
             // 2. Indexer API (port 9200, OpenSearch): query wazuh-alerts-* index directly
             const baseUrl = config.endpoint.replace(/\/+$/, "");
-            const indexerMode = config.indexer_url ? true : false;
             const indexerUrl = (config.indexer_url || "").replace(/\/+$/, "");
+            const wazuhMode: "indexer" | "manager" = indexerUrl ? "indexer" : "manager";
+            result.diagnostics = {
+              mode: wazuhMode,
+              endpointHost: getHost(baseUrl),
+              indexerHost: getHost(indexerUrl),
+            };
 
             try {
               if (indexerUrl) {
@@ -231,11 +367,11 @@ serve(async (req) => {
                   idxHeaders["Authorization"] = `Basic ${config.api_key}`;
                 }
 
-                const idxResp = await fetch(`${indexerUrl}/wazuh-alerts-*/_search`, {
+                const idxResp = await fetchWithTimeout(`${indexerUrl}/wazuh-alerts-*/_search`, {
                   method: "POST",
                   headers: idxHeaders,
                   body: JSON.stringify(searchBody),
-                });
+                }, 8000);
 
                 if (idxResp.ok) {
                   const idxData = await idxResp.json();
@@ -251,7 +387,7 @@ serve(async (req) => {
                   });
                 } else {
                   const body = await idxResp.text();
-                  console.error(`Wazuh Indexer error for ${integration.name}: ${idxResp.status}`, body);
+                  throw new Error(`Indexer request failed with ${idxResp.status}${body ? `: ${body.slice(0, 200)}` : ""}`);
                 }
               } else {
                 // --- Wazuh Manager API mode ---
@@ -265,38 +401,41 @@ serve(async (req) => {
 
                 for (const authUrl of authPaths) {
                   console.log(`Trying Wazuh auth: ${authUrl}`);
-                  const authResp = await fetch(authUrl, {
+                  const authResp = await fetchWithTimeout(authUrl, {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
                       Authorization: `Basic ${config.api_key || ""}`,
                     },
-                  });
+                  }, 8000);
+
+                  const authText = await authResp.text();
 
                   if (authResp.ok) {
-                    const authData = await authResp.json();
-                    wazuhToken = authData.data?.token || authData.token || (typeof authData === "string" ? authData : null);
+                    const authData = parseJsonOrText<{ data?: { token?: string }; token?: string }>(authText);
+                    wazuhToken = typeof authData === "string"
+                      ? authData.replace(/^"|"$/g, "").trim()
+                      : authData?.data?.token || authData?.token || null;
+
                     if (wazuhToken) {
                       console.log(`Wazuh auth succeeded for ${integration.name}`);
                       break;
                     }
                   } else {
-                    const body = await authResp.text();
-                    console.error(`Wazuh auth ${authResp.status} at ${authUrl}:`, body);
+                    console.error(`Wazuh auth ${authResp.status} at ${authUrl}:`, authText);
                   }
                 }
 
                 if (!wazuhToken) {
-                  console.error(`Wazuh: could not authenticate for ${integration.name}. Ensure the endpoint is your Wazuh Manager API URL (e.g. https://your-wazuh:55000). If you use Wazuh Indexer, add the Indexer URL in the config.`);
-                  break;
+                  throw new Error("Could not authenticate with the Wazuh Manager API. Verify the manager URL, username, and password.");
                 }
 
                 // Step 2: Fetch recent alerts via Manager API
                 // Wazuh Manager doesn't have /alerts endpoint; use /vulnerability or /manager/logs
                 // The best option is /manager/logs or /agents summary
-                const summaryResp = await fetch(`${baseUrl}/overview/agents`, {
+                const summaryResp = await fetchWithTimeout(`${baseUrl}/overview/agents`, {
                   headers: { Authorization: `Bearer ${wazuhToken}` },
-                });
+                }, 8000);
                 if (summaryResp.ok) {
                   const summaryData = await summaryResp.json();
                   console.log(`Wazuh Manager overview: ${JSON.stringify(summaryData.data?.affected_items?.length || 0)} items`);
@@ -305,9 +444,9 @@ serve(async (req) => {
                 if (!summaryResp.ok) await summaryResp.text();
 
                 // Try fetching syscheck / rootcheck results as "alerts"
-                const logResp = await fetch(`${baseUrl}/manager/logs?limit=50&sort=-timestamp`, {
+                const logResp = await fetchWithTimeout(`${baseUrl}/manager/logs?limit=50&sort=-timestamp`, {
                   headers: { Authorization: `Bearer ${wazuhToken}` },
-                });
+                }, 8000);
                 if (logResp.ok) {
                   const logData = await logResp.json();
                   events = (logData.data?.affected_items || []).map((item: any) => ({
@@ -322,7 +461,7 @@ serve(async (req) => {
                 }
               }
             } catch (wErr) {
-              console.error(`Wazuh error for ${integration.name}:`, wErr);
+              throw new Error(formatWazuhError(wErr, wazuhMode));
             }
             break;
           }
@@ -342,6 +481,8 @@ serve(async (req) => {
             break;
           }
         }
+
+        result.fetched = events.length;
 
         // Convert SIEM events to alerts
         if (events.length > 0) {
@@ -370,6 +511,7 @@ serve(async (req) => {
               source_url: config.endpoint,
             });
             totalIngested++;
+            result.ingested++;
           }
         }
 
@@ -378,20 +520,29 @@ serve(async (req) => {
           last_sync_at: new Date().toISOString(),
         }).eq("id", integration.id);
 
-        console.log(`✅ ${integration.name}: ${events.length} events fetched, ${totalIngested} ingested`);
+        console.log(`✅ ${integration.name}: ${events.length} events fetched, ${result.ingested} ingested`);
+        results.push(result);
       } catch (err) {
         console.error(`Error ingesting from ${integration.name}:`, err);
+        result.ok = false;
+        result.error = getErrorMessage(err);
+        results.push(result);
       }
     }
 
-    return new Response(JSON.stringify({ success: true, ingested: totalIngested }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const failedResults = results.filter((item) => !item.ok);
+
+    return respond({
+      ok: failedResults.length === 0,
+      ingested: totalIngested,
+      error: failedResults[0]?.error,
+      results,
     });
   } catch (error) {
     console.error("SIEM ingest error:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return respond({
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });
