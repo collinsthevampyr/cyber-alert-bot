@@ -33,6 +33,7 @@ export const SIEMIntegrations = () => {
   const [apiKey, setApiKey] = useState("");
   const [wazuhUser, setWazuhUser] = useState("");
   const [wazuhPass, setWazuhPass] = useState("");
+  const [wazuhIndexerUrl, setWazuhIndexerUrl] = useState("");
   const [creating, setCreating] = useState(false);
   const { toast } = useToast();
 
@@ -54,14 +55,18 @@ export const SIEMIntegrations = () => {
     const resolvedApiKey = siemType === "wazuh" && wazuhUser && wazuhPass
       ? btoa(`${wazuhUser}:${wazuhPass}`)
       : apiKey || undefined;
+    const configPayload: any = { endpoint, api_key: resolvedApiKey };
+    if (siemType === "wazuh" && wazuhIndexerUrl.trim()) {
+      configPayload.indexer_url = wazuhIndexerUrl.trim();
+    }
     const { error } = await supabase.from("siem_integrations").insert({
       user_id: user.id,
       name,
       siem_type: siemType,
-      config: { endpoint, api_key: resolvedApiKey },
+      config: configPayload,
     });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
+    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setWazuhIndexerUrl(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
     setCreating(false);
   };
 
@@ -114,9 +119,12 @@ export const SIEMIntegrations = () => {
               <Input placeholder="Endpoint URL" value={endpoint} onChange={e => setEndpoint(e.target.value)} className="text-sm" />
               {siemType === "wazuh" ? (
                 <>
+                  <p className="text-[10px] text-muted-foreground">Enter your Wazuh Manager API URL (e.g. https://your-wazuh:55000)</p>
                   <Input placeholder="Wazuh username" value={wazuhUser} onChange={e => setWazuhUser(e.target.value)} className="text-sm" />
                   <Input placeholder="Wazuh password" value={wazuhPass} onChange={e => setWazuhPass(e.target.value)} className="text-sm" type="password" />
                   <p className="text-[10px] text-muted-foreground">Credentials will be Base64-encoded automatically</p>
+                  <Input placeholder="Wazuh Indexer URL (optional, e.g. https://your-wazuh:9200)" value={wazuhIndexerUrl} onChange={e => setWazuhIndexerUrl(e.target.value)} className="text-sm" />
+                  <p className="text-[10px] text-muted-foreground">💡 For best results, add your Wazuh Indexer URL — alerts are stored there, not in the Manager API</p>
                 </>
               ) : (
                 <Input placeholder="API Key (optional)" value={apiKey} onChange={e => setApiKey(e.target.value)} className="text-sm" type="password" />

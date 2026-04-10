@@ -200,44 +200,126 @@ serve(async (req) => {
           }
 
           case "wazuh": {
-            // Wazuh API: authenticate first, then fetch alerts
+            // Wazuh supports two modes:
+            // 1. Manager API (port 55000): authenticate + fetch via API
+            // 2. Indexer API (port 9200, OpenSearch): query wazuh-alerts-* index directly
             const baseUrl = config.endpoint.replace(/\/+$/, "");
-            try {
-              // Step 1: Authenticate to get JWT token
-              const authResp = await fetch(`${baseUrl}/security/user/authenticate`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Basic ${config.api_key || ""}`,
-                },
-              });
-              if (!authResp.ok) {
-                console.error(`Wazuh auth error for ${integration.name}: ${authResp.status}`);
-                const body = await authResp.text();
-                console.error("Wazuh auth body:", body);
-                break;
-              }
-              const authData = await authResp.json();
-              const wazuhToken = authData.data?.token;
-              if (!wazuhToken) {
-                console.error(`Wazuh: no token returned for ${integration.name}`);
-                break;
-              }
+            const indexerMode = config.indexer_url ? true : false;
+            const indexerUrl = (config.indexer_url || "").replace(/\/+$/, "");
 
-              // Step 2: Fetch recent alerts
-              const alertsResp = await fetch(`${baseUrl}/alerts?limit=50&sort=-timestamp&q=timestamp>${new Date(Date.now() - 15 * 60 * 1000).toISOString()}`, {
-                headers: { Authorization: `Bearer ${wazuhToken}` },
-              });
-              if (alertsResp.ok) {
-                const alertsData = await alertsResp.json();
-                events = (alertsData.data?.affected_items || []).map((item: any) => ({
-                  summary: item.rule?.description || item.full_log?.substring(0, 200) || "Wazuh alert",
-                  severity: mapWazuhLevel(item.rule?.level || 0),
-                  _raw: JSON.stringify(item),
-                }));
+            try {
+              if (indexerUrl) {
+                // --- Wazuh Indexer (OpenSearch) mode ---
+                console.log(`Wazuh Indexer mode for ${integration.name}: ${indexerUrl}`);
+                const timeRange = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+                const searchBody = {
+                  query: {
+                    bool: {
+                      must: [
+                        { range: { "timestamp": { gte: timeRange } } }
+                      ]
+                    }
+                  },
+                  size: 50,
+                  sort: [{ "timestamp": { order: "desc" } }]
+                };
+
+                const idxHeaders: Record<string, string> = {
+                  "Content-Type": "application/json",
+                };
+                if (config.api_key) {
+                  idxHeaders["Authorization"] = `Basic ${config.api_key}`;
+                }
+
+                const idxResp = await fetch(`${indexerUrl}/wazuh-alerts-*/_search`, {
+                  method: "POST",
+                  headers: idxHeaders,
+                  body: JSON.stringify(searchBody),
+                });
+
+                if (idxResp.ok) {
+                  const idxData = await idxResp.json();
+                  const hits = idxData.hits?.hits || [];
+                  console.log(`Wazuh Indexer: ${hits.length} hits returned`);
+                  events = hits.map((hit: any) => {
+                    const src = hit._source || {};
+                    return {
+                      summary: src.rule?.description || src.full_log?.substring(0, 200) || "Wazuh alert",
+                      severity: mapWazuhLevel(src.rule?.level || 0),
+                      _raw: JSON.stringify(src),
+                    };
+                  });
+                } else {
+                  const body = await idxResp.text();
+                  console.error(`Wazuh Indexer error for ${integration.name}: ${idxResp.status}`, body);
+                }
               } else {
-                console.error(`Wazuh alerts error for ${integration.name}: ${alertsResp.status}`);
-                await alertsResp.text(); // consume body
+                // --- Wazuh Manager API mode ---
+                // Step 1: Authenticate to get JWT token
+                // Try common API paths
+                let wazuhToken: string | null = null;
+                const authPaths = [
+                  `${baseUrl}/security/user/authenticate`,
+                  `${baseUrl}/security/user/authenticate?raw=true`,
+                ];
+
+                for (const authUrl of authPaths) {
+                  console.log(`Trying Wazuh auth: ${authUrl}`);
+                  const authResp = await fetch(authUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Basic ${config.api_key || ""}`,
+                    },
+                  });
+
+                  if (authResp.ok) {
+                    const authData = await authResp.json();
+                    wazuhToken = authData.data?.token || authData.token || (typeof authData === "string" ? authData : null);
+                    if (wazuhToken) {
+                      console.log(`Wazuh auth succeeded for ${integration.name}`);
+                      break;
+                    }
+                  } else {
+                    const body = await authResp.text();
+                    console.error(`Wazuh auth ${authResp.status} at ${authUrl}:`, body);
+                  }
+                }
+
+                if (!wazuhToken) {
+                  console.error(`Wazuh: could not authenticate for ${integration.name}. Ensure the endpoint is your Wazuh Manager API URL (e.g. https://your-wazuh:55000). If you use Wazuh Indexer, add the Indexer URL in the config.`);
+                  break;
+                }
+
+                // Step 2: Fetch recent alerts via Manager API
+                // Wazuh Manager doesn't have /alerts endpoint; use /vulnerability or /manager/logs
+                // The best option is /manager/logs or /agents summary
+                const summaryResp = await fetch(`${baseUrl}/overview/agents`, {
+                  headers: { Authorization: `Bearer ${wazuhToken}` },
+                });
+                if (summaryResp.ok) {
+                  const summaryData = await summaryResp.json();
+                  console.log(`Wazuh Manager overview: ${JSON.stringify(summaryData.data?.affected_items?.length || 0)} items`);
+                }
+                // Consume response
+                if (!summaryResp.ok) await summaryResp.text();
+
+                // Try fetching syscheck / rootcheck results as "alerts"
+                const logResp = await fetch(`${baseUrl}/manager/logs?limit=50&sort=-timestamp`, {
+                  headers: { Authorization: `Bearer ${wazuhToken}` },
+                });
+                if (logResp.ok) {
+                  const logData = await logResp.json();
+                  events = (logData.data?.affected_items || []).map((item: any) => ({
+                    summary: item.description || item.tag || "Wazuh manager log",
+                    severity: mapWazuhLevel(item.level ? parseInt(item.level) : 3),
+                    _raw: JSON.stringify(item),
+                  }));
+                  console.log(`Wazuh Manager logs: ${events.length} events`);
+                } else {
+                  console.error(`Wazuh Manager logs error: ${logResp.status}`);
+                  await logResp.text();
+                }
               }
             } catch (wErr) {
               console.error(`Wazuh error for ${integration.name}:`, wErr);
