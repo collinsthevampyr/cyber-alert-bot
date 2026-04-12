@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Loader2, Trash2, Database, Activity } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -35,6 +36,7 @@ export const SIEMIntegrations = () => {
   const [wazuhUser, setWazuhUser] = useState("");
   const [wazuhPass, setWazuhPass] = useState("");
   const [wazuhIndexerUrl, setWazuhIndexerUrl] = useState("");
+  const [skipTlsVerify, setSkipTlsVerify] = useState(false);
   const [creating, setCreating] = useState(false);
   const { toast } = useToast();
 
@@ -57,8 +59,9 @@ export const SIEMIntegrations = () => {
       ? btoa(`${wazuhUser}:${wazuhPass}`)
       : apiKey || undefined;
     const configPayload: any = { endpoint, api_key: resolvedApiKey };
-    if (siemType === "wazuh" && wazuhIndexerUrl.trim()) {
-      configPayload.indexer_url = wazuhIndexerUrl.trim();
+    if (siemType === "wazuh") {
+      if (wazuhIndexerUrl.trim()) configPayload.indexer_url = wazuhIndexerUrl.trim();
+      if (skipTlsVerify) configPayload.skip_tls_verify = true;
     }
     const { error } = await supabase.from("siem_integrations").insert({
       user_id: user.id,
@@ -67,7 +70,7 @@ export const SIEMIntegrations = () => {
       config: configPayload,
     });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setWazuhIndexerUrl(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
+    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setWazuhIndexerUrl(""); setSkipTlsVerify(false); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
     setCreating(false);
   };
 
@@ -143,6 +146,16 @@ export const SIEMIntegrations = () => {
                   <p className="text-[10px] text-muted-foreground">Credentials will be Base64-encoded automatically</p>
                   <Input placeholder="Wazuh Indexer URL (optional, e.g. https://your-wazuh:9200)" value={wazuhIndexerUrl} onChange={e => setWazuhIndexerUrl(e.target.value)} className="text-sm" />
                   <p className="text-[10px] text-muted-foreground">💡 For best results, add your Wazuh Indexer URL — alerts are stored there, not in the Manager API</p>
+                  <div className="flex items-center space-x-2 pt-1">
+                    <Checkbox
+                      id="skip-tls"
+                      checked={skipTlsVerify}
+                      onCheckedChange={(checked) => setSkipTlsVerify(checked === true)}
+                    />
+                    <label htmlFor="skip-tls" className="text-xs text-muted-foreground cursor-pointer">
+                      Trust self-signed certificates (skip TLS verification)
+                    </label>
+                  </div>
                 </>
               ) : (
                 <Input placeholder="API Key (optional)" value={apiKey} onChange={e => setApiKey(e.target.value)} className="text-sm" type="password" />

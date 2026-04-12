@@ -47,12 +47,27 @@ async function parseBody(req: Request) {
   }
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000) {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000, skipTls = false): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    // If TLS error and skip_tls_verify is enabled, retry with HTTP
+    if (skipTls && url.startsWith("https://")) {
+      const httpUrl = url.replace(/^https:\/\//, "http://");
+      console.log(`TLS error with skip_tls_verify enabled, retrying with HTTP: ${httpUrl}`);
+      clearTimeout(timeoutId);
+      const controller2 = new AbortController();
+      const timeoutId2 = setTimeout(() => controller2.abort(), timeoutMs);
+      try {
+        return await fetch(httpUrl, { ...init, signal: controller2.signal });
+      } finally {
+        clearTimeout(timeoutId2);
+      }
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -331,12 +346,10 @@ serve(async (req) => {
           }
 
           case "wazuh": {
-            // Wazuh supports two modes:
-            // 1. Manager API (port 55000): authenticate + fetch via API
-            // 2. Indexer API (port 9200, OpenSearch): query wazuh-alerts-* index directly
             const baseUrl = config.endpoint.replace(/\/+$/, "");
             const indexerUrl = (config.indexer_url || "").replace(/\/+$/, "");
             const wazuhMode: "indexer" | "manager" = indexerUrl ? "indexer" : "manager";
+            const skipTls = !!config.skip_tls_verify;
             result.diagnostics = {
               mode: wazuhMode,
               endpointHost: getHost(baseUrl),
@@ -371,7 +384,7 @@ serve(async (req) => {
                   method: "POST",
                   headers: idxHeaders,
                   body: JSON.stringify(searchBody),
-                }, 8000);
+                }, 8000, skipTls);
 
                 if (idxResp.ok) {
                   const idxData = await idxResp.json();
@@ -407,7 +420,7 @@ serve(async (req) => {
                       "Content-Type": "application/json",
                       Authorization: `Basic ${config.api_key || ""}`,
                     },
-                  }, 8000);
+                  }, 8000, skipTls);
 
                   const authText = await authResp.text();
 
@@ -435,7 +448,7 @@ serve(async (req) => {
                 // The best option is /manager/logs or /agents summary
                 const summaryResp = await fetchWithTimeout(`${baseUrl}/overview/agents`, {
                   headers: { Authorization: `Bearer ${wazuhToken}` },
-                }, 8000);
+                }, 8000, skipTls);
                 if (summaryResp.ok) {
                   const summaryData = await summaryResp.json();
                   console.log(`Wazuh Manager overview: ${JSON.stringify(summaryData.data?.affected_items?.length || 0)} items`);
@@ -446,7 +459,7 @@ serve(async (req) => {
                 // Try fetching syscheck / rootcheck results as "alerts"
                 const logResp = await fetchWithTimeout(`${baseUrl}/manager/logs?limit=50&sort=-timestamp`, {
                   headers: { Authorization: `Bearer ${wazuhToken}` },
-                }, 8000);
+                }, 8000, skipTls);
                 if (logResp.ok) {
                   const logData = await logResp.json();
                   events = (logData.data?.affected_items || []).map((item: any) => ({
