@@ -51,13 +51,26 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+  const fetchOptions: any = { ...init, signal: controller.signal };
+
+  // Use Deno.createHttpClient to skip TLS verification for self-signed certs
+  if (skipTls && typeof (Deno as any).createHttpClient === "function") {
+    try {
+      const httpClient = (Deno as any).createHttpClient({ caCerts: [], certErrors: false });
+      fetchOptions.client = httpClient;
+      console.log(`Using Deno HTTP client with TLS verification disabled for: ${url}`);
+    } catch (e) {
+      console.warn("Could not create custom HTTP client, falling back to default:", e);
+    }
+  }
+
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await fetch(url, fetchOptions);
   } catch (err) {
-    // If TLS error and skip_tls_verify is enabled, retry with HTTP
+    // If TLS still fails and skip_tls enabled, try HTTP as last resort
     if (skipTls && url.startsWith("https://")) {
       const httpUrl = url.replace(/^https:\/\//, "http://");
-      console.log(`TLS error with skip_tls_verify enabled, retrying with HTTP: ${httpUrl}`);
+      console.log(`HTTPS failed with skip_tls, trying HTTP fallback: ${httpUrl}`);
       clearTimeout(timeoutId);
       const controller2 = new AbortController();
       const timeoutId2 = setTimeout(() => controller2.abort(), timeoutMs);
