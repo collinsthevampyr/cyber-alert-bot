@@ -47,12 +47,27 @@ async function parseBody(req: Request) {
   }
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000) {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000, skipTls = false): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    // If TLS error and skip_tls_verify is enabled, retry with HTTP
+    if (skipTls && url.startsWith("https://")) {
+      const httpUrl = url.replace(/^https:\/\//, "http://");
+      console.log(`TLS error with skip_tls_verify enabled, retrying with HTTP: ${httpUrl}`);
+      clearTimeout(timeoutId);
+      const controller2 = new AbortController();
+      const timeoutId2 = setTimeout(() => controller2.abort(), timeoutMs);
+      try {
+        return await fetch(httpUrl, { ...init, signal: controller2.signal });
+      } finally {
+        clearTimeout(timeoutId2);
+      }
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
