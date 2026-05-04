@@ -47,38 +47,46 @@ async function parseBody(req: Request) {
   }
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000, skipTls = false): Promise<Response> {
+function normalizePem(value?: string) {
+  return value?.replace(/\\n/g, "\n").trim();
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000, skipTls = false, trustedCaCert?: string): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const fetchOptions: any = { ...init, signal: controller.signal };
 
-  // For self-signed certs, use node:https with rejectUnauthorized: false
-  // This works in Supabase Edge Runtime (which supports node: imports) where
-  // Deno.createHttpClient is not available.
+  // Lovable Cloud's Edge Runtime does not honor Node's rejectUnauthorized=false.
+  // For Wazuh self-signed certs, trust the user's Wazuh root CA explicitly.
   if (skipTls && url.startsWith("https://")) {
-    try {
-      console.log(`[skip_tls] Using node:https agent for: ${url}`);
-      const https = await import("node:https");
-      const nodeFetchMod: any = await import("npm:node-fetch@3");
-      const nodeFetch = nodeFetchMod.default || nodeFetchMod;
-      const agent = new https.Agent({ rejectUnauthorized: false });
-      const resp = await nodeFetch(url, {
-        method: init.method || "GET",
-        headers: init.headers as any,
-        body: init.body as any,
-        agent,
-        signal: controller.signal,
-      });
+    const caCert = normalizePem(trustedCaCert);
+
+    if (!caCert) {
       clearTimeout(timeoutId);
-      // Convert node-fetch Response into a standard Response
+      throw new Error("Wazuh is using a self-signed/untrusted TLS certificate. Lovable Cloud cannot fully disable certificate verification here; paste the Wazuh root CA certificate PEM in this integration, or use a publicly trusted certificate on Wazuh.");
+    }
+
+    const createHttpClient = (Deno as any).createHttpClient;
+    if (typeof createHttpClient !== "function") {
+      clearTimeout(timeoutId);
+      throw new Error("This runtime cannot create a custom TLS client. Add a publicly trusted certificate to Wazuh or place Wazuh behind a trusted HTTPS reverse proxy.");
+    }
+
+    const client = createHttpClient({ caCerts: [caCert] });
+
+    try {
+      console.log(`[skip_tls] Using custom Wazuh CA for: ${url}`);
+      const resp = await fetch(url, { ...fetchOptions, client });
+      clearTimeout(timeoutId);
+      clearTimeout(timeoutId);
       const buf = await resp.arrayBuffer();
       const headers = new Headers();
       resp.headers.forEach((v: string, k: string) => headers.set(k, v));
       return new Response(buf, { status: resp.status, statusText: resp.statusText, headers });
-    } catch (e) {
-      console.warn(`[skip_tls] node:https path failed, falling back to native fetch:`, e);
-      // Fall through to native fetch
+    } finally {
+      client.close?.();
+      clearTimeout(timeoutId);
     }
   }
 
