@@ -79,7 +79,6 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000
       console.log(`[skip_tls] Using custom Wazuh CA for: ${url}`);
       const resp = await fetch(url, { ...fetchOptions, client });
       clearTimeout(timeoutId);
-      clearTimeout(timeoutId);
       const buf = await resp.arrayBuffer();
       const headers = new Headers();
       resp.headers.forEach((v: string, k: string) => headers.set(k, v));
@@ -374,6 +373,7 @@ serve(async (req) => {
             const indexerUrl = (config.indexer_url || "").replace(/\/+$/, "");
             const wazuhMode: "indexer" | "manager" = indexerUrl ? "indexer" : "manager";
             const skipTls = !!config.skip_tls_verify;
+            const trustedCaCert = config.wazuh_ca_cert;
             result.diagnostics = {
               mode: wazuhMode,
               endpointHost: getHost(baseUrl),
@@ -408,7 +408,7 @@ serve(async (req) => {
                   method: "POST",
                   headers: idxHeaders,
                   body: JSON.stringify(searchBody),
-                }, 8000, skipTls);
+                }, 8000, skipTls, trustedCaCert);
 
                 if (idxResp.ok) {
                   const idxData = await idxResp.json();
@@ -444,7 +444,7 @@ serve(async (req) => {
                       "Content-Type": "application/json",
                       Authorization: `Basic ${config.api_key || ""}`,
                     },
-                  }, 8000, skipTls);
+                  }, 8000, skipTls, trustedCaCert);
 
                   const authText = await authResp.text();
 
@@ -472,7 +472,7 @@ serve(async (req) => {
                 // The best option is /manager/logs or /agents summary
                 const summaryResp = await fetchWithTimeout(`${baseUrl}/overview/agents`, {
                   headers: { Authorization: `Bearer ${wazuhToken}` },
-                }, 8000, skipTls);
+                }, 8000, skipTls, trustedCaCert);
                 if (summaryResp.ok) {
                   const summaryData = await summaryResp.json();
                   console.log(`Wazuh Manager overview: ${JSON.stringify(summaryData.data?.affected_items?.length || 0)} items`);
@@ -483,7 +483,7 @@ serve(async (req) => {
                 // Try fetching syscheck / rootcheck results as "alerts"
                 const logResp = await fetchWithTimeout(`${baseUrl}/manager/logs?limit=50&sort=-timestamp`, {
                   headers: { Authorization: `Bearer ${wazuhToken}` },
-                }, 8000, skipTls);
+                }, 8000, skipTls, trustedCaCert);
                 if (logResp.ok) {
                   const logData = await logResp.json();
                   events = (logData.data?.affected_items || []).map((item: any) => ({
