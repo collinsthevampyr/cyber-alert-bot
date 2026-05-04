@@ -37,6 +37,7 @@ export const SIEMIntegrations = () => {
   const [wazuhPass, setWazuhPass] = useState("");
   const [wazuhIndexerUrl, setWazuhIndexerUrl] = useState("");
   const [skipTlsVerify, setSkipTlsVerify] = useState(false);
+  const [wazuhCaCert, setWazuhCaCert] = useState("");
   const [creating, setCreating] = useState(false);
   const { toast } = useToast();
 
@@ -62,6 +63,7 @@ export const SIEMIntegrations = () => {
     if (siemType === "wazuh") {
       if (wazuhIndexerUrl.trim()) configPayload.indexer_url = wazuhIndexerUrl.trim();
       if (skipTlsVerify) configPayload.skip_tls_verify = true;
+      if (skipTlsVerify && wazuhCaCert.trim()) configPayload.wazuh_ca_cert = wazuhCaCert.trim();
     }
     const { error } = await supabase.from("siem_integrations").insert({
       user_id: user.id,
@@ -70,7 +72,7 @@ export const SIEMIntegrations = () => {
       config: configPayload,
     });
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setWazuhIndexerUrl(""); setSkipTlsVerify(false); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
+    else { setName(""); setEndpoint(""); setApiKey(""); setWazuhUser(""); setWazuhPass(""); setWazuhIndexerUrl(""); setSkipTlsVerify(false); setWazuhCaCert(""); setDialogOpen(false); toast({ title: "SIEM integration added" }); load(); }
     setCreating(false);
   };
 
@@ -153,14 +155,20 @@ export const SIEMIntegrations = () => {
                       onCheckedChange={(checked) => setSkipTlsVerify(checked === true)}
                     />
                     <label htmlFor="skip-tls" className="text-xs text-muted-foreground cursor-pointer">
-                      Trust self-signed certificates (skip TLS verification)
+                      Trust Wazuh self-signed certificate
                     </label>
                   </div>
+                  {skipTlsVerify && (
+                    <>
+                      <Textarea placeholder="Paste Wazuh root CA certificate PEM (-----BEGIN CERTIFICATE-----...)" value={wazuhCaCert} onChange={e => setWazuhCaCert(e.target.value)} className="text-xs font-mono min-h-24" />
+                      <p className="text-[10px] text-muted-foreground">Lovable Cloud must trust the Wazuh CA explicitly; full TLS bypass is blocked by the runtime.</p>
+                    </>
+                  )}
                 </>
               ) : (
                 <Input placeholder="API Key (optional)" value={apiKey} onChange={e => setApiKey(e.target.value)} className="text-sm" type="password" />
               )}
-              <Button className="w-full text-xs" onClick={createIntegration} disabled={creating || !name.trim() || !endpoint.trim()}>
+              <Button className="w-full text-xs" onClick={createIntegration} disabled={creating || !name.trim() || !endpoint.trim() || (siemType === "wazuh" && skipTlsVerify && !wazuhCaCert.trim())}>
                 {creating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null} Add Integration
               </Button>
             </div>
