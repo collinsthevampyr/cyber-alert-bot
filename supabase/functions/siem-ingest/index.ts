@@ -53,34 +53,37 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000
 
   const fetchOptions: any = { ...init, signal: controller.signal };
 
-  // Use Deno.createHttpClient to skip TLS verification for self-signed certs
-  if (skipTls && typeof (Deno as any).createHttpClient === "function") {
+  // For self-signed certs, use node:https with rejectUnauthorized: false
+  // This works in Supabase Edge Runtime (which supports node: imports) where
+  // Deno.createHttpClient is not available.
+  if (skipTls && url.startsWith("https://")) {
     try {
-      const httpClient = (Deno as any).createHttpClient({ caCerts: [], certErrors: false });
-      fetchOptions.client = httpClient;
-      console.log(`Using Deno HTTP client with TLS verification disabled for: ${url}`);
+      console.log(`[skip_tls] Using node:https agent for: ${url}`);
+      const https = await import("node:https");
+      const nodeFetchMod: any = await import("npm:node-fetch@3");
+      const nodeFetch = nodeFetchMod.default || nodeFetchMod;
+      const agent = new https.Agent({ rejectUnauthorized: false });
+      const resp = await nodeFetch(url, {
+        method: init.method || "GET",
+        headers: init.headers as any,
+        body: init.body as any,
+        agent,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      // Convert node-fetch Response into a standard Response
+      const buf = await resp.arrayBuffer();
+      const headers = new Headers();
+      resp.headers.forEach((v: string, k: string) => headers.set(k, v));
+      return new Response(buf, { status: resp.status, statusText: resp.statusText, headers });
     } catch (e) {
-      console.warn("Could not create custom HTTP client, falling back to default:", e);
+      console.warn(`[skip_tls] node:https path failed, falling back to native fetch:`, e);
+      // Fall through to native fetch
     }
   }
 
   try {
     return await fetch(url, fetchOptions);
-  } catch (err) {
-    // If TLS still fails and skip_tls enabled, try HTTP as last resort
-    if (skipTls && url.startsWith("https://")) {
-      const httpUrl = url.replace(/^https:\/\//, "http://");
-      console.log(`HTTPS failed with skip_tls, trying HTTP fallback: ${httpUrl}`);
-      clearTimeout(timeoutId);
-      const controller2 = new AbortController();
-      const timeoutId2 = setTimeout(() => controller2.abort(), timeoutMs);
-      try {
-        return await fetch(httpUrl, { ...init, signal: controller2.signal });
-      } finally {
-        clearTimeout(timeoutId2);
-      }
-    }
-    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
