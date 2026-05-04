@@ -155,7 +155,7 @@ export const SIEMIntegrations = () => {
                       onCheckedChange={(checked) => setSkipTlsVerify(checked === true)}
                     />
                     <label htmlFor="skip-tls" className="text-xs text-muted-foreground cursor-pointer">
-                      Trust self-signed certificates (skip TLS verification)
+                      Trust Wazuh self-signed certificate
                     </label>
                   </div>
                   {skipTlsVerify && (
@@ -168,7 +168,7 @@ export const SIEMIntegrations = () => {
               ) : (
                 <Input placeholder="API Key (optional)" value={apiKey} onChange={e => setApiKey(e.target.value)} className="text-sm" type="password" />
               )}
-              <Button className="w-full text-xs" onClick={createIntegration} disabled={creating || !name.trim() || !endpoint.trim()}>
+              <Button className="w-full text-xs" onClick={createIntegration} disabled={creating || !name.trim() || !endpoint.trim() || (siemType === "wazuh" && skipTlsVerify && !wazuhCaCert.trim())}>
                 {creating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null} Add Integration
               </Button>
             </div>
