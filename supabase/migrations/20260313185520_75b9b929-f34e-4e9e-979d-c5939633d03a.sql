@@ -1,0 +1,1 @@
+DELETE FROM monitoring_config WHERE id NOT IN (SELECT DISTINCT ON (user_id) id FROM monitoring_config ORDER BY user_id, updated_at DESC); ALTER TABLE monitoring_config ADD CONSTRAINT monitoring_config_user_id_key UNIQUE (user_id);

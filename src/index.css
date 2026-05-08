@@ -1,0 +1,74 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 16% 6%;
+    --foreground: 210 17% 93%;
+
+    --card: 220 16% 9%;
+    --card-foreground: 210 17% 93%;
+
+    --popover: 220 16% 9%;
+    --popover-foreground: 210 17% 93%;
+
+    --primary: 168 72% 51%;
+    --primary-foreground: 220 16% 6%;
+
+    --secondary: 220 14% 14%;
+    --secondary-foreground: 210 17% 80%;
+
+    --muted: 220 14% 14%;
+    --muted-foreground: 215 12% 52%;
+
+    --accent: 168 72% 51%;
+    --accent-foreground: 220 16% 6%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 152 60% 42%;
+    --warning: 36 77% 49%;
+    --info: 210 70% 55%;
+    --critical: 0 72% 51%;
+
+    --border: 220 14% 16%;
+    --input: 220 14% 16%;
+    --ring: 168 72% 51%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 16% 9%;
+    --sidebar-foreground: 210 17% 93%;
+    --sidebar-primary: 168 72% 51%;
+    --sidebar-primary-foreground: 220 16% 6%;
+    --sidebar-accent: 220 14% 14%;
+    --sidebar-accent-foreground: 210 17% 80%;
+    --sidebar-border: 220 14% 16%;
+    --sidebar-ring: 168 72% 51%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

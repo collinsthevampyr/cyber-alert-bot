@@ -1,0 +1,1 @@
+ALTER TABLE public.monitoring_config ADD COLUMN IF NOT EXISTS custom_ai_config jsonb DEFAULT '{}'::jsonb;
