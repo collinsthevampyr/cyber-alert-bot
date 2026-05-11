@@ -67,9 +67,13 @@ Creates all tables, RLS policies, functions, and triggers from `supabase/migrati
 | `SUPABASE_URL` | Auto-injected |
 | `SUPABASE_SERVICE_ROLE_KEY` | Auto-injected |
 | `CRON_SECRET` | Bearer token used by pg_cron jobs to call edge functions |
+| `RESEND_API_KEY` | Required for email notifications (`send-notification`). Get one at https://resend.com |
+| `RESEND_FROM_EMAIL` | Optional — default sender, e.g. `Gardien <alerts@yourdomain.com>`. Falls back to `Gardien <onboarding@resend.dev>` for testing. |
 
 ```sh
 supabase secrets set CRON_SECRET="$(openssl rand -hex 32)"
+supabase secrets set RESEND_API_KEY="re_xxx"
+supabase secrets set RESEND_FROM_EMAIL="Gardien <alerts@yourdomain.com>"
 ```
 
 ### 4d. Deploy edge functions
@@ -90,32 +94,17 @@ supabase functions deploy mcp-server
 
 ### 4e. Schedule cron jobs
 
-In the Supabase SQL editor:
+Cron jobs are **not** in the migrations because they hardcode your project ref and `CRON_SECRET`. After deploying the edge functions, open the Supabase SQL editor and run [`SUPABASE_SETUP.sql`](./SUPABASE_SETUP.sql) — replace `<YOUR-PROJECT-REF>` and `<YOUR-CRON-SECRET>` first.
+
+Verify with:
 
 ```sql
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-
-alter database postgres
-  set app.cron_secret = '<same value you set with supabase secrets set>';
-
-select cron.schedule(
-  'cron-scan',
-  '*/5 * * * *',
-  $$
-  select net.http_post(
-    url := 'https://<YOUR-PROJECT-REF>.functions.supabase.co/cron-scan',
-    headers := jsonb_build_object(
-      'Authorization', 'Bearer ' || current_setting('app.cron_secret', true),
-      'Content-Type', 'application/json'
-    ),
-    body := '{}'::jsonb
-  );
-  $$
-);
+select jobid, jobname, schedule, active from cron.job;
+select jobid, status, return_message, start_time
+  from cron.job_run_details order by start_time desc limit 10;
 ```
 
-Repeat for `check-escalations` and any other scheduled functions.
+If a run returns 401, your `app.cron_secret` doesn't match the `CRON_SECRET` edge function secret.
 
 ### 4f. Storage
 
