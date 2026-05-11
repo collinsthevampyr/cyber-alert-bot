@@ -42,6 +42,19 @@ function formatAlertText(alert: AlertData): string {
   return text;
 }
 
+function buildTestAlert(channelType: string): AlertData {
+  return {
+    id: "test",
+    tool_name: "Gardien",
+    severity: "Low",
+    summary: `This is a test ${channelType} notification from Gardien.`,
+    source_url: null,
+    analysis: null,
+    remediation: null,
+    detected_at: new Date().toISOString(),
+  };
+}
+
 function formatDiscordEmbed(alert: AlertData) {
   const colorMap: Record<string, number> = {
     critical: 0xff0000,
@@ -131,8 +144,11 @@ async function sendToChannel(channel: any, alert: AlertData): Promise<{ success:
         const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
         if (!RESEND_API_KEY) {
           console.log(`Email skipped (no RESEND_API_KEY): ${config.email_address}`);
-          return { success: false, error: "Email service not configured (RESEND_API_KEY missing)" };
+          return { success: false, error: "Email service not configured. Add RESEND_API_KEY as a Supabase Edge Function secret." };
         }
+        const fromAddress = config.from_address
+          || Deno.env.get("RESEND_FROM_EMAIL")
+          || "Gardien <onboarding@resend.dev>";
 
         const emailResp = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -141,7 +157,7 @@ async function sendToChannel(channel: any, alert: AlertData): Promise<{ success:
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: config.from_address || "Gardien <alerts@gardien.io>",
+            from: fromAddress,
             to: [config.email_address],
             subject: `🔔 [${alert.severity}] Security Alert: ${alert.tool_name}`,
             html: formatEmailHtml(alert),
@@ -150,7 +166,7 @@ async function sendToChannel(channel: any, alert: AlertData): Promise<{ success:
 
         if (!emailResp.ok) {
           const errText = await emailResp.text();
-          return { success: false, error: `Email: ${emailResp.status} - ${errText}` };
+          return { success: false, error: `Resend ${emailResp.status}: ${errText.substring(0, 300)}` };
         }
         return { success: true };
       }
@@ -214,7 +230,33 @@ serve(async (req) => {
       });
     }
 
-    const { alertId, channelIds } = await req.json();
+    const { alertId, channelIds, test, channelId } = await req.json();
+
+    // ── Test mode: send a sample notification through one channel ──
+    if (test && channelId) {
+      const { data: ch, error: chErr } = await supabaseAdmin
+        .from("notification_channels")
+        .select("*")
+        .eq("id", channelId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (chErr || !ch) {
+        return new Response(JSON.stringify({ error: "Channel not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const result = await sendToChannel(ch, buildTestAlert(ch.channel_type));
+      return new Response(JSON.stringify({
+        success: result.success,
+        error: result.error,
+        channel_type: ch.channel_type,
+      }), {
+        status: result.success ? 200 : 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!alertId) {
       return new Response(JSON.stringify({ error: "alertId is required" }), {
         status: 400,
