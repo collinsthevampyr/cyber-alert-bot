@@ -72,16 +72,15 @@ export const NotificationChannels = () => {
 
   const test = async (ch: Channel) => {
     try {
-      if (ch.channel_type === "slack") {
-        const r = await fetch(ch.config.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: "✓ Gardien test notification" }) });
-        if (r.ok) toast({ title: "Sent", description: "Test delivered to Slack." }); else throw new Error("Failed");
-      } else if (ch.channel_type === "discord") {
-        const r = await fetch(ch.config.webhook_url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ embeds: [{ title: "Test Notification", description: "Gardien connected.", color: 0x3d9a50 }] }) });
-        if (r.ok) toast({ title: "Sent", description: "Test delivered to Discord." }); else throw new Error("Failed");
-      } else {
-        toast({ title: "Email", description: `Notifications will be sent to ${ch.config.email_address}` });
-      }
-    } catch { toast({ title: "Failed", description: "Could not deliver test.", variant: "destructive" }); }
+      const { data, error } = await supabase.functions.invoke("send-notification", {
+        body: { test: true, channelId: ch.id },
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Delivery failed");
+      toast({ title: "Sent", description: `Test delivered to ${ch.channel_type}.` });
+    } catch (e: any) {
+      toast({ title: "Test failed", description: e.message || "Could not deliver test.", variant: "destructive" });
+    }
   };
 
   const placeholder = newType === "slack" ? "https://hooks.slack.com/services/..." : newType === "discord" ? "https://discord.com/api/webhooks/..." : "alerts@example.com";
