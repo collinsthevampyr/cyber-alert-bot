@@ -161,7 +161,7 @@ export const SIEMIntegrations = () => {
                   {skipTlsVerify && (
                     <>
                       <Textarea placeholder="Paste Wazuh root CA certificate PEM (-----BEGIN CERTIFICATE-----...)" value={wazuhCaCert} onChange={e => setWazuhCaCert(e.target.value)} className="text-xs font-mono min-h-24" />
-                      <p className="text-[10px] text-muted-foreground">Lovable Cloud must trust the Wazuh CA explicitly; full TLS bypass is blocked by the runtime.</p>
+                      <p className="text-[10px] text-muted-foreground">The Supabase Edge Runtime must trust the Wazuh CA explicitly; full TLS bypass is blocked by the runtime. Hosting the frontend on Vercel does not change this.</p>
                     </>
                   )}
                 </>

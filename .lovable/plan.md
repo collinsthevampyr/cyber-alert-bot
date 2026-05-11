@@ -1,47 +1,69 @@
-## Migration prep: code changes for Vercel + Supabase
+## Plan: Repair Vercel + Supabase migration breakage
 
-This plan covers only the **codebase changes** needed to make the app deployable on Vercel against your own Supabase project. Account creation, DB dump/restore, DNS, and Vercel project setup are manual steps you do outside Lovable (covered in the previous migration guide).
+### 1. Fix Slack notification testing
+- Change the Notifications card so Slack/Discord tests no longer POST directly from the browser.
+- Browser-to-Slack webhook calls often fail because of CORS, especially after moving to Vercel.
+- Route test sends through the existing `send-notification` Supabase Edge Function instead.
+- Add support in `send-notification` for testing a specific notification channel without requiring an alert.
+- Return detailed delivery errors to the UI instead of only showing “Could not deliver test.”
 
-### Changes I will make
+### 2. Fix email notification testing and delivery
+- Update the email test button so it actually sends an email through the backend instead of only showing a toast.
+- Keep the current Resend-based email implementation, because project memory says email notifications require Resend.
+- Add clear backend validation for:
+  - missing `RESEND_API_KEY`
+  - missing/invalid sender address
+  - Resend API failure responses
+- Add support for a configurable sender address, preferably via a Supabase Edge Function secret such as `RESEND_FROM_EMAIL`, falling back only if configured.
+- Surface the exact safe error message in the app so you can see whether the problem is the API key, verified domain, or recipient.
 
-1. **Remove Lovable-specific build tooling**
-   - `package.json`: remove `lovable-tagger` from devDependencies.
-   - `vite.config.ts`: drop the `componentTagger()` plugin and its import.
+### 3. Fix manual scan visibility and failure handling
+- Improve `scan-threats` responses and frontend handling so manual scans show the real reason when no alerts are created:
+  - OpenAI key missing from AI Provider settings
+  - monitoring tools not configured
+  - OpenAI request failed
+  - AI returned no threats
+  - database insert failed
+- Add safe environment checks inside scan Edge Functions for required Supabase secrets so migration mistakes are obvious.
+- Update the Scan button toast to show `alertsFound` and any diagnostic message instead of only “Scan started.”
 
-2. **Add Vercel SPA config**
-   - New `vercel.json` with a rewrite so React Router deep links (`/dashboard`, `/soc`, etc.) fall back to `index.html`.
+### 4. Fix automatic scan setup documentation and verification
+- Add a dedicated Supabase SQL setup file for external deployments, not a migration, with cron-job templates for:
+  - `cron-scan`
+  - `check-escalations`
+- Use placeholders for the new Supabase project ref and `CRON_SECRET` so old Lovable URLs are not accidentally reused.
+- Update the README migration section to explain that cron jobs are runtime/project-specific and must be created in the new Supabase SQL editor after functions and secrets are deployed.
+- Include verification queries for `cron.job` and `cron.job_run_details`.
 
-3. **Environment variables**
-   - Keep `src/integrations/supabase/client.ts` as-is (already reads `import.meta.env.VITE_SUPABASE_*`).
-   - Add `.env.example` documenting the three required vars (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`) so you know what to paste into Vercel → Project Settings → Environment Variables.
-   - Leave the current `.env` untouched (Lovable manages it); Vercel will use its own env vars.
+### 5. Fix Wazuh “untrusted SSL certificate” wording and behavior
+- Replace remaining “Lovable Cloud” wording in SIEM TLS errors with neutral “Supabase Edge Runtime,” since the app is now hosted on Vercel/Supabase.
+- Keep the security rule that self-signed Wazuh TLS requires either:
+  - a pasted Wazuh root CA certificate PEM, or
+  - a publicly trusted certificate / trusted reverse proxy
+- Clarify in the UI that Vercel hosting does not change this, because SIEM fetching happens from Supabase Edge Functions, not from the Vercel frontend.
 
-4. **Edge function compatibility**
-   - All edge functions already use standard Deno + `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` / `CRON_SECRET` env vars — they will deploy unchanged to your own Supabase via `supabase functions deploy`.
-   - No code changes needed; `supabase/config.toml` already declares each function with `verify_jwt = false` where required.
+### 6. Deployment checklist after code changes
+- Deploy Supabase Edge Functions again after the fixes:
+  - `send-notification`
+  - `scan-threats`
+  - `cron-scan`
+  - `siem-ingest`
+  - `check-escalations`
+- Confirm these Supabase secrets exist in the new project:
+  - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `CRON_SECRET`
+  - `RESEND_API_KEY`
+  - `RESEND_FROM_EMAIL`
+- Confirm Vercel has the frontend env vars:
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_PUBLISHABLE_KEY`
+  - `VITE_SUPABASE_PROJECT_ID`
 
-5. **README rewrite**
-   - Replace the Lovable-centric README with instructions for: local dev (`npm i && npm run dev`), env vars, deploying frontend to Vercel, deploying edge functions with the Supabase CLI, and setting `CRON_SECRET` + pg_cron jobs.
-
-### Changes I will NOT make (out of scope / manual)
-
-- Creating the new Supabase project, dumping/restoring the database, copying storage buckets, or re-creating pg_cron jobs — these are dashboard/CLI operations.
-- Creating the GitHub repo or Vercel project.
-- Rotating the anon key baked into `.env` (your new Supabase project will have its own).
-
-### Files touched
-
-- edit `package.json`
-- edit `vite.config.ts`
-- add `vercel.json`
-- add `.env.example`
-- rewrite `README.md`
-
-### After I apply these changes
-
-You'll be able to:
-1. Push the repo to GitHub.
-2. Import it in Vercel, paste the 3 env vars from your new Supabase project, deploy.
-3. Run `supabase link` + `supabase functions deploy` + `supabase db push` against the new project.
-
-Confirm and I'll implement.
+## Expected outcome
+- Slack test sends work from Vercel because they go through the backend.
+- Email test sends real emails and reports useful Resend errors.
+- Manual scans explain why they produced no results.
+- Automatic scans can be recreated reliably in the external Supabase project.
+- Wazuh TLS errors are accurate for the new Vercel/Supabase architecture.

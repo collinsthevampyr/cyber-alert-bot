@@ -59,18 +59,18 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 8000
 
   // Lovable Cloud's Edge Runtime does not honor Node's rejectUnauthorized=false.
   // For Wazuh self-signed certs, trust the user's Wazuh root CA explicitly.
-  if (skipTls && url.startsWith("https://")) {
+    if (skipTls && url.startsWith("https://")) {
     const caCert = normalizePem(trustedCaCert);
 
     if (!caCert) {
       clearTimeout(timeoutId);
-      throw new Error("Wazuh is using a self-signed/untrusted TLS certificate. Lovable Cloud cannot fully disable certificate verification here; paste the Wazuh root CA certificate PEM in this integration, or use a publicly trusted certificate on Wazuh.");
+        throw new Error("Wazuh is using a self-signed/untrusted TLS certificate. The Supabase Edge Runtime cannot fully disable certificate verification; paste the Wazuh root CA certificate PEM in this integration, or use a publicly trusted certificate on Wazuh. (Hosting on Vercel does not change this — SIEM fetching runs from Supabase Edge Functions, not the frontend.)");
     }
 
     const createHttpClient = (Deno as any).createHttpClient;
     if (typeof createHttpClient !== "function") {
       clearTimeout(timeoutId);
-      throw new Error("This runtime cannot create a custom TLS client. Add a publicly trusted certificate to Wazuh or place Wazuh behind a trusted HTTPS reverse proxy.");
+        throw new Error("The Supabase Edge Runtime cannot create a custom TLS client here. Add a publicly trusted certificate to Wazuh or place Wazuh behind a trusted HTTPS reverse proxy.");
     }
 
     const client = createHttpClient({ caCerts: [caCert] });
@@ -131,8 +131,8 @@ function formatWazuhError(error: unknown, mode: "indexer" | "manager") {
 
   if (lower.includes("timed out")) {
     return mode === "indexer"
-      ? "Could not reach the Wazuh Indexer URL from Lovable Cloud. Check that port 9200 is publicly reachable."
-      : "Could not reach the Wazuh Manager API from Lovable Cloud. Check that the API URL and port are publicly reachable.";
+      ? "Could not reach the Wazuh Indexer URL from the Supabase Edge Runtime. Check that port 9200 is publicly reachable."
+      : "Could not reach the Wazuh Manager API from the Supabase Edge Runtime. Check that the API URL and port are publicly reachable.";
   }
 
   return message;

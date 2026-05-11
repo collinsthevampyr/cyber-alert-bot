@@ -107,9 +107,13 @@ serve(async (req) => {
       );
     }
 
-    if (!config.is_active || config.tools_list.length === 0) {
+    if (!config.is_active || !config.tools_list || config.tools_list.length === 0) {
       return new Response(
-        JSON.stringify({ message: "Monitoring is not active or no tools configured" }),
+        JSON.stringify({
+          success: false,
+          alertsFound: 0,
+          message: "No tools configured. Add tools to monitor in Configuration → Monitoring.",
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -389,12 +393,17 @@ Only include threats from the last 7 days. If no recent threats exist, indicate 
       }
     }
 
+    const summaryMessage = alerts.length > 0
+      ? `Scan completed. Found ${alerts.length} new alert${alerts.length === 1 ? "" : "s"}.`
+      : `Scan completed. No new threats detected for: ${config.tools_list.join(", ")}.`;
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Scan completed. Found ${alerts.length} new alerts.`,
+        message: summaryMessage,
         scanId: scan.id,
         alertsFound: alerts.length,
+        toolsScanned: config.tools_list.length,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

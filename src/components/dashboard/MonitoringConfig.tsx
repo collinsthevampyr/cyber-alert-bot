@@ -75,7 +75,11 @@ export const MonitoringConfig = () => {
     try {
       const { data, error } = await supabase.functions.invoke("scan-threats", { body: { manual: true } });
       if (error) throw error;
-      toast({ title: "Scan started", description: data?.message || "Running now." });
+      const found = data?.alertsFound ?? 0;
+      toast({
+        title: found > 0 ? `${found} alert${found === 1 ? "" : "s"} found` : "Scan complete",
+        description: data?.message || "No new threats detected.",
+      });
     } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
     setScanLoading(false);
   };
