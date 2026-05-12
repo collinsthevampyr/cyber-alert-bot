@@ -64,7 +64,20 @@ export const AlertHistory = () => {
     setAnalyzingIds(p => new Set(p).add(id));
     try {
       const { data, error } = await supabase.functions.invoke("analyze-alert", { body: { alertId: id } });
-      if (error) throw error;
+      if (error) {
+        let msg = error.message || "Edge Function error";
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            if (body?.error) msg = body.error;
+          } else if (ctx && typeof ctx.text === "function") {
+            const body = await ctx.text();
+            if (body) msg = body;
+          }
+        } catch {}
+        throw new Error(msg);
+      }
       if (!data || data.error) throw new Error(data?.error || "Analysis returned no data");
       const updatedAlert = { analysis: data.analysis, remediation: data.remediation };
       setAlerts(p => p.map(a => a.id === id ? { ...a, ...updatedAlert } : a));
