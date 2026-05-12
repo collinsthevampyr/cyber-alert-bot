@@ -18,23 +18,86 @@ function isSafeWebhookUrl(url: string): boolean {
 }
 
 interface AIConfig {
+  provider: string;
   url: string;
   apiKey: string;
   model: string;
+  format: "openai" | "anthropic" | "google";
 }
+
+const PROVIDER_DEFAULTS: Record<string, { url: string; model: string; format: "openai" | "anthropic" | "google" }> = {
+  openai:     { url: "https://api.openai.com/v1/chat/completions",         model: "gpt-4o-mini",              format: "openai" },
+  deepseek:   { url: "https://api.deepseek.com/v1/chat/completions",       model: "deepseek-chat",            format: "openai" },
+  groq:       { url: "https://api.groq.com/openai/v1/chat/completions",    model: "llama-3.3-70b-versatile",  format: "openai" },
+  mistral:    { url: "https://api.mistral.ai/v1/chat/completions",         model: "mistral-large-latest",     format: "openai" },
+  openrouter: { url: "https://openrouter.ai/api/v1/chat/completions",      model: "openai/gpt-4o-mini",       format: "openai" },
+  anthropic:  { url: "https://api.anthropic.com/v1/messages",              model: "claude-3-5-sonnet-latest", format: "anthropic" },
+  google:     { url: "https://generativelanguage.googleapis.com/v1beta/models", model: "gemini-2.0-flash",    format: "google" },
+};
 
 function getAIConfig(customAiConfig: any): AIConfig | null {
-  if (customAiConfig?.api_key) {
+  if (!customAiConfig?.api_key) return null;
+  const provider = (customAiConfig.provider || "openai").toLowerCase();
+  if (provider === "custom") {
+    const url = customAiConfig.base_url;
+    if (!url) return null;
     return {
-      url: "https://api.openai.com/v1/chat/completions",
+      provider: "custom",
+      url,
       apiKey: customAiConfig.api_key,
-      model: customAiConfig.model || "gpt-4o",
+      model: customAiConfig.model || "gpt-4o-mini",
+      format: "openai",
     };
   }
-  return null;
+  const defaults = PROVIDER_DEFAULTS[provider];
+  if (!defaults) return null;
+  return {
+    provider,
+    url: defaults.url,
+    apiKey: customAiConfig.api_key,
+    model: customAiConfig.model || defaults.model,
+    format: defaults.format,
+  };
 }
 
-async function callAI(aiConfig: AIConfig, messages: any[]): Promise<any> {
+async function callAI(aiConfig: AIConfig, messages: { role: string; content: string }[]): Promise<string | null> {
+  const systemMsg = messages.find(m => m.role === "system")?.content || "";
+  const userMsg = messages.filter(m => m.role !== "system").map(m => m.content).join("\n\n");
+
+  if (aiConfig.format === "anthropic") {
+    const resp = await fetch(aiConfig.url, {
+      method: "POST",
+      headers: {
+        "x-api-key": aiConfig.apiKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: aiConfig.model,
+        max_tokens: 4096,
+        system: systemMsg,
+        messages: [{ role: "user", content: userMsg }],
+      }),
+    });
+    if (!resp.ok) { console.error("AI request failed:", resp.status, await resp.text()); return null; }
+    const data = await resp.json();
+    return data.content?.[0]?.text ?? null;
+  }
+  if (aiConfig.format === "google") {
+    const url = `${aiConfig.url}/${aiConfig.model}:generateContent?key=${aiConfig.apiKey}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { role: "system", parts: [{ text: systemMsg }] },
+        contents: [{ role: "user", parts: [{ text: userMsg }] }],
+      }),
+    });
+    if (!resp.ok) { console.error("AI request failed:", resp.status, await resp.text()); return null; }
+    const data = await resp.json();
+    return data.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") ?? null;
+  }
+  // OpenAI-compatible
   const response = await fetch(aiConfig.url, {
     method: "POST",
     headers: {
@@ -122,11 +185,11 @@ serve(async (req) => {
     const aiConfig = getAIConfig(config.custom_ai_config);
     if (!aiConfig) {
       return new Response(
-        JSON.stringify({ error: "AI API key not configured. Please add your OpenAI API key in Configuration → AI Provider." }),
+        JSON.stringify({ error: "AI API key not configured. Please add your AI provider API key in Configuration → AI Provider." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    console.log(`Using AI provider: OpenAI (user key)`);
+    console.log(`Using AI provider: ${aiConfig.provider} (model: ${aiConfig.model})`);
 
     // Create scan history record
     const { data: scan, error: scanError } = await supabaseClient
