@@ -204,6 +204,9 @@ You must return ONLY valid JSON in this exact format (no markdown, no backticks)
   "remediation": "Step-by-step remediation recommendations. Include: immediate actions (within 24 hours), short-term fixes (within 1 week), long-term improvements. Be specific with commands, configuration changes, patch versions, or tool settings where applicable. Format as numbered steps."
 }`;
 
+    const rawEventStr = alert.raw_event ? JSON.stringify(alert.raw_event).slice(0, 4000) : "";
+    const metaStr = alert.event_metadata ? JSON.stringify(alert.event_metadata).slice(0, 1500) : "";
+
     const userPrompt = `Analyze this cybersecurity alert and provide expert-level analysis and remediation:
 
 **Tool/Technology:** ${alert.tool_name}
@@ -212,6 +215,7 @@ You must return ONLY valid JSON in this exact format (no markdown, no backticks)
 **Source URL:** ${alert.source_url || "N/A"}
 **Detected At:** ${alert.detected_at}
 **User's Monitored Stack:** ${config?.tools_list?.join(", ") || "Unknown"}
+${metaStr ? `\n**Event Metadata (host, rule, IP, agent, etc.):**\n${metaStr}\n` : ""}${rawEventStr ? `\n**Raw SIEM Event (truncated):**\n${rawEventStr}\n` : ""}
 
 Consider:
 1. How this threat specifically impacts the "${alert.tool_name}" technology
