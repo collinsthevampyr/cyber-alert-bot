@@ -1,69 +1,76 @@
-## Plan: Repair Vercel + Supabase migration breakage
+## Goals
 
-### 1. Fix Slack notification testing
-- Change the Notifications card so Slack/Discord tests no longer POST directly from the browser.
-- Browser-to-Slack webhook calls often fail because of CORS, especially after moving to Vercel.
-- Route test sends through the existing `send-notification` Supabase Edge Function instead.
-- Add support in `send-notification` for testing a specific notification channel without requiring an alert.
-- Return detailed delivery errors to the UI instead of only showing “Could not deliver test.”
+Three issues to fix:
 
-### 2. Fix email notification testing and delivery
-- Update the email test button so it actually sends an email through the backend instead of only showing a toast.
-- Keep the current Resend-based email implementation, because project memory says email notifications require Resend.
-- Add clear backend validation for:
-  - missing `RESEND_API_KEY`
-  - missing/invalid sender address
-  - Resend API failure responses
-- Add support for a configurable sender address, preferably via a Supabase Edge Function secret such as `RESEND_FROM_EMAIL`, falling back only if configured.
-- Surface the exact safe error message in the app so you can see whether the problem is the API key, verified domain, or recipient.
+1. SIEM-ingested alerts are not auto-analyzed by AI (only manual "Analyze" works).
+2. SIEM events only carry a short title — analysis lacks the raw context (rule, host, source IP, full log, etc.).
+3. Dashboard shows a fixed 50 alerts with no pagination and no date filter.
 
-### 3. Fix manual scan visibility and failure handling
-- Improve `scan-threats` responses and frontend handling so manual scans show the real reason when no alerts are created:
-  - OpenAI key missing from AI Provider settings
-  - monitoring tools not configured
-  - OpenAI request failed
-  - AI returned no threats
-  - database insert failed
-- Add safe environment checks inside scan Edge Functions for required Supabase secrets so migration mistakes are obvious.
-- Update the Scan button toast to show `alertsFound` and any diagnostic message instead of only “Scan started.”
+---
 
-### 4. Fix automatic scan setup documentation and verification
-- Add a dedicated Supabase SQL setup file for external deployments, not a migration, with cron-job templates for:
-  - `cron-scan`
-  - `check-escalations`
-- Use placeholders for the new Supabase project ref and `CRON_SECRET` so old Lovable URLs are not accidentally reused.
-- Update the README migration section to explain that cron jobs are runtime/project-specific and must be created in the new Supabase SQL editor after functions and secrets are deployed.
-- Include verification queries for `cron.job` and `cron.job_run_details`.
+## 1. Capture richer SIEM event context
 
-### 5. Fix Wazuh “untrusted SSL certificate” wording and behavior
-- Replace remaining “Lovable Cloud” wording in SIEM TLS errors with neutral “Supabase Edge Runtime,” since the app is now hosted on Vercel/Supabase.
-- Keep the security rule that self-signed Wazuh TLS requires either:
-  - a pasted Wazuh root CA certificate PEM, or
-  - a publicly trusted certificate / trusted reverse proxy
-- Clarify in the UI that Vercel hosting does not change this, because SIEM fetching happens from Supabase Edge Functions, not from the Vercel frontend.
+**Database**
 
-### 6. Deployment checklist after code changes
-- Deploy Supabase Edge Functions again after the fixes:
-  - `send-notification`
-  - `scan-threats`
-  - `cron-scan`
-  - `siem-ingest`
-  - `check-escalations`
-- Confirm these Supabase secrets exist in the new project:
-  - `SUPABASE_URL`
-  - `SUPABASE_ANON_KEY`
-  - `SUPABASE_SERVICE_ROLE_KEY`
-  - `CRON_SECRET`
-  - `RESEND_API_KEY`
-  - `RESEND_FROM_EMAIL`
-- Confirm Vercel has the frontend env vars:
-  - `VITE_SUPABASE_URL`
-  - `VITE_SUPABASE_PUBLISHABLE_KEY`
-  - `VITE_SUPABASE_PROJECT_ID`
+Add two nullable columns to `alerts` so SIEM data is preserved without losing existing rows:
 
-## Expected outcome
-- Slack test sends work from Vercel because they go through the backend.
-- Email test sends real emails and reports useful Resend errors.
-- Manual scans explain why they produced no results.
-- Automatic scans can be recreated reliably in the external Supabase project.
-- Wazuh TLS errors are accurate for the new Vercel/Supabase architecture.
+- `raw_event jsonb` — full normalized event payload (rule id, level, host, agent, source IP, full_log, etc.)
+- `event_metadata jsonb` — small key/value of indexed-friendly fields (host, rule_id, agent_name, src_ip)
+
+**`supabase/functions/siem-ingest/index.ts`**
+
+For each SIEM type (Wazuh indexer/manager, Splunk, Elastic, Sentinel, QRadar, Chronicle, custom), build a normalized object with:
+- `summary` (rule description)
+- `severity`
+- `raw_event` — entire `_source` / row / hit
+- `event_metadata` — extracted host, rule.id, rule.level, agent.name, data.srcip, decoder.name, etc.
+
+Insert these into `alerts` alongside existing fields.
+
+## 2. Auto-analyze SIEM alerts
+
+**`supabase/functions/siem-ingest/index.ts`**
+
+After successful insert into `alerts`, collect the new alert IDs per user. At the end of the run, for each user that has `custom_ai_config.api_key` configured:
+
+- Load their AI config (reuse the multi-provider `getAIConfig` + `callAI` helpers — extract them from `scan-threats` into shared inline functions in this file).
+- For each new alert, call the AI with a richer prompt that includes:
+  - `tool_name`, `severity`, `summary`
+  - `raw_event` (truncated to ~4 KB)
+  - `event_metadata`
+  - User's stack (`monitoring_config.tools_list`)
+- Update the alert with `analysis` and `remediation`.
+- Then trigger the existing notification fan-out (Slack/Discord/Email channels + legacy webhook + `webhooks` table) the same way `cron-scan` and `scan-threats` already do.
+
+**`supabase/functions/cron-scan/index.ts`**
+
+Replace the hard-coded OpenAI block with the same `getAIConfig` + `callAI` helpers so cron-driven scans honor the user's chosen provider (OpenAI / DeepSeek / Anthropic / Google / Groq / Mistral / OpenRouter / Custom). Today cron-scan only works for OpenAI keys, which is why "automatic" analysis silently does nothing for users on other providers.
+
+**`supabase/functions/analyze-alert/index.ts`**
+
+When analyzing, also include `raw_event` and `event_metadata` (if present) in the prompt so manual re-analysis benefits from the richer SIEM context too.
+
+## 3. Dashboard alert pagination + date filter
+
+**`src/components/dashboard/AlertHistory.tsx`**
+
+- Replace the single `loadAlerts` (limit 50) with paginated fetch:
+  - 50 per page using Supabase `.range(from, to)` and `{ count: "exact" }`.
+  - Page state + total count.
+  - Pagination controls (`Previous` / `Next` / page indicator) using existing `Pagination` UI primitives.
+- Add date filter to the Filter bar:
+  - From / To date pickers (shadcn `Calendar` in `Popover`, with `pointer-events-auto`).
+  - "Last 24h / 7d / 30d / Custom / All" quick-select.
+  - Date range applied as `.gte("detected_at", from)` and `.lte("detected_at", to)` server-side so pagination stays accurate.
+- Search / severity / tool filters move to the server query as well so they paginate correctly.
+- Realtime channel: on insert, refresh page 1 only (avoid disturbing user's current page).
+
+---
+
+## Technical notes
+
+- Migration is additive (`ADD COLUMN ... jsonb NULL`) — no data loss, existing alerts get NULL for new fields.
+- All edge function changes must keep the existing `verify_jwt` setup and CORS headers untouched.
+- `raw_event` is truncated before sending to AI to stay under provider context limits; the full JSON stays in the DB.
+- `notification_channels` email path stays as a no-op log unless Resend/SMTP is configured (out of scope here).
+- Edge functions to redeploy after changes: `siem-ingest`, `cron-scan`, `analyze-alert`.
