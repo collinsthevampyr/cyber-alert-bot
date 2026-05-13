@@ -13,6 +13,102 @@ const BodySchema = z.object({
   integrationId: z.string().uuid().optional(),
 });
 
+// ---- Multi-provider AI helpers ----
+interface AIConfig {
+  provider: string;
+  url: string;
+  apiKey: string;
+  model: string;
+  format: "openai" | "anthropic" | "google";
+}
+const PROVIDER_DEFAULTS: Record<string, { url: string; model: string; format: "openai" | "anthropic" | "google" }> = {
+  openai:     { url: "https://api.openai.com/v1/chat/completions",         model: "gpt-4o-mini",              format: "openai" },
+  deepseek:   { url: "https://api.deepseek.com/v1/chat/completions",       model: "deepseek-chat",            format: "openai" },
+  groq:       { url: "https://api.groq.com/openai/v1/chat/completions",    model: "llama-3.3-70b-versatile",  format: "openai" },
+  mistral:    { url: "https://api.mistral.ai/v1/chat/completions",         model: "mistral-large-latest",     format: "openai" },
+  openrouter: { url: "https://openrouter.ai/api/v1/chat/completions",      model: "openai/gpt-4o-mini",       format: "openai" },
+  anthropic:  { url: "https://api.anthropic.com/v1/messages",              model: "claude-3-5-sonnet-latest", format: "anthropic" },
+  google:     { url: "https://generativelanguage.googleapis.com/v1beta/models", model: "gemini-2.0-flash",    format: "google" },
+};
+function getAIConfig(customAiConfig: any): AIConfig | null {
+  if (!customAiConfig?.api_key) return null;
+  const provider = (customAiConfig.provider || "openai").toLowerCase();
+  if (provider === "custom") {
+    const url = customAiConfig.base_url;
+    if (!url) return null;
+    return { provider: "custom", url, apiKey: customAiConfig.api_key, model: customAiConfig.model || "gpt-4o-mini", format: "openai" };
+  }
+  const defaults = PROVIDER_DEFAULTS[provider];
+  if (!defaults) return null;
+  return { provider, url: defaults.url, apiKey: customAiConfig.api_key, model: customAiConfig.model || defaults.model, format: defaults.format };
+}
+async function callAI(aiConfig: AIConfig, systemMsg: string, userMsg: string): Promise<string | null> {
+  try {
+    if (aiConfig.format === "anthropic") {
+      const r = await fetch(aiConfig.url, {
+        method: "POST",
+        headers: { "x-api-key": aiConfig.apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+        body: JSON.stringify({ model: aiConfig.model, max_tokens: 4096, system: systemMsg, messages: [{ role: "user", content: userMsg }] }),
+      });
+      if (!r.ok) { console.error("AI failed:", r.status, await r.text()); return null; }
+      const d = await r.json();
+      return d.content?.[0]?.text ?? null;
+    }
+    if (aiConfig.format === "google") {
+      const r = await fetch(`${aiConfig.url}/${aiConfig.model}:generateContent?key=${aiConfig.apiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { role: "system", parts: [{ text: systemMsg }] },
+          contents: [{ role: "user", parts: [{ text: userMsg }] }],
+        }),
+      });
+      if (!r.ok) { console.error("AI failed:", r.status, await r.text()); return null; }
+      const d = await r.json();
+      return d.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") ?? null;
+    }
+    const r = await fetch(aiConfig.url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${aiConfig.apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: aiConfig.model, messages: [{ role: "system", content: systemMsg }, { role: "user", content: userMsg }] }),
+    });
+    if (!r.ok) { console.error("AI failed:", r.status, await r.text()); return null; }
+    const d = await r.json();
+    return d.choices?.[0]?.message?.content ?? null;
+  } catch (e) {
+    console.error("AI call exception:", e);
+    return null;
+  }
+}
+function extractMetadata(src: any): Record<string, any> {
+  const meta: Record<string, any> = {};
+  if (!src || typeof src !== "object") return meta;
+  const pick = (k: string, v: any) => { if (v !== undefined && v !== null && v !== "") meta[k] = v; };
+  pick("rule_id", src.rule?.id);
+  pick("rule_level", src.rule?.level);
+  pick("rule_groups", src.rule?.groups);
+  pick("agent_name", src.agent?.name || src.agent_name);
+  pick("agent_ip", src.agent?.ip);
+  pick("host", src.host?.name || src.host || src.hostname);
+  pick("src_ip", src.data?.srcip || src.src_ip || src.source?.ip);
+  pick("dst_ip", src.data?.dstip || src.destination?.ip);
+  pick("user", src.data?.srcuser || src.user?.name);
+  pick("decoder", src.decoder?.name);
+  pick("location", src.location);
+  pick("timestamp", src.timestamp || src["@timestamp"]);
+  return meta;
+}
+function isSafeWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (!['https:'].includes(parsed.protocol)) return false;
+    const host = parsed.hostname.toLowerCase();
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.)/.test(host)) return false;
+    if (['localhost', 'metadata.google.internal', '[::1]'].includes(host)) return false;
+    return true;
+  } catch { return false; }
+}
+
 type IntegrationResult = {
   integrationId: string;
   name: string;
