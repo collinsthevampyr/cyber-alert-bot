@@ -515,6 +515,8 @@ serve(async (req) => {
                     return {
                       summary: src.rule?.description || src.full_log?.substring(0, 200) || "Wazuh alert",
                       severity: mapWazuhLevel(src.rule?.level || 0),
+                      raw_event: src,
+                      event_metadata: extractMetadata(src),
                       _raw: JSON.stringify(src),
                     };
                   });
