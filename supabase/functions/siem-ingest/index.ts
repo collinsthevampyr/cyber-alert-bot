@@ -324,6 +324,8 @@ serve(async (req) => {
 
     let totalIngested = 0;
     const results: IntegrationResult[] = [];
+    // Track newly inserted alerts grouped by user so we can auto-analyze + notify after the loop.
+    const insertedAlertsByUser = new Map<string, any[]>();
 
     for (const integration of integrations) {
       const config = integration.config as any;
@@ -638,15 +640,22 @@ serve(async (req) => {
 
             if (existing?.length) continue; // skip duplicate
 
-            await supabase.from("alerts").insert({
+            const { data: newAlert } = await supabase.from("alerts").insert({
               user_id: integration.user_id,
               tool_name: `SIEM:${integration.name}`,
               severity,
               summary: summary.substring(0, 200),
               source_url: config.endpoint,
-            });
+              raw_event: event.raw_event ?? null,
+              event_metadata: event.event_metadata ?? null,
+            }).select().single();
             totalIngested++;
             result.ingested++;
+            if (newAlert) {
+              const arr = insertedAlertsByUser.get(integration.user_id) || [];
+              arr.push(newAlert);
+              insertedAlertsByUser.set(integration.user_id, arr);
+            }
           }
         }
 
