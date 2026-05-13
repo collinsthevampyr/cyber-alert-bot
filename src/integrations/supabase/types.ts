@@ -52,9 +52,11 @@ export type Database = {
           closed_at: string | null
           created_at: string
           detected_at: string
+          event_metadata: Json | null
           id: string
           incident_id: string | null
           is_false_positive: boolean
+          raw_event: Json | null
           remediation: string | null
           resolved_at: string | null
           scan_id: string | null
@@ -73,9 +75,11 @@ export type Database = {
           closed_at?: string | null
           created_at?: string
           detected_at?: string
+          event_metadata?: Json | null
           id?: string
           incident_id?: string | null
           is_false_positive?: boolean
+          raw_event?: Json | null
           remediation?: string | null
           resolved_at?: string | null
           scan_id?: string | null
@@ -94,9 +98,11 @@ export type Database = {
           closed_at?: string | null
           created_at?: string
           detected_at?: string
+          event_metadata?: Json | null
           id?: string
           incident_id?: string | null
           is_false_positive?: boolean
+          raw_event?: Json | null
           remediation?: string | null
           resolved_at?: string | null
           scan_id?: string | null
