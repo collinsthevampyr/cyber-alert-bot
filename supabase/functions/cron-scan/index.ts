@@ -278,31 +278,20 @@ serve(async (req) => {
 
       const alerts: any[] = [];
 
-      // Get user's AI config
-      const userAiConfig = config.custom_ai_config as any;
-      if (!userAiConfig?.api_key) {
+      // Get user's AI config (multi-provider)
+      const aiConfig = getAIConfig(config.custom_ai_config);
+      if (!aiConfig) {
         console.log(`Skipping user ${config.user_id} — no AI API key configured`);
         await supabase.from("scan_history").update({ status: "completed", scan_completed_at: new Date().toISOString(), alerts_found: 0 }).eq("id", scan.id);
         continue;
       }
-      const aiUrl = "https://api.openai.com/v1/chat/completions";
-      const aiApiKey = userAiConfig.api_key;
-      const aiModel = userAiConfig.model || "gpt-4o";
+      console.log(`User ${config.user_id} provider: ${aiConfig.provider} (${aiConfig.model})`);
 
       for (const tool of config.tools_list) {
         try {
-          const aiResponse = await fetch(aiUrl, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${aiApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: aiModel,
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a cybersecurity threat analyst. Analyze recent security threats, vulnerabilities, and breaches related to specific technologies. 
+          const content = await callAI(
+            aiConfig,
+            `You are a cybersecurity threat analyst. Analyze recent security threats, vulnerabilities, and breaches related to specific technologies. 
 Return ONLY valid JSON in this exact format (no markdown, no backticks):
 {
   "hasThreats": boolean,
@@ -315,22 +304,8 @@ Return ONLY valid JSON in this exact format (no markdown, no backticks):
   ]
 }
 If no recent threats found, return: {"hasThreats": false, "threats": []}`,
-                },
-                {
-                  role: "user",
-                  content: `Search for recent cybersecurity threats, vulnerabilities, CVEs, and security advisories related to: ${tool}. Focus on threats from the last 7 days. If none, set hasThreats to false.`,
-                },
-              ],
-            }),
-          });
-
-          if (!aiResponse.ok) {
-            console.error(`AI failed for ${tool}:`, await aiResponse.text());
-            continue;
-          }
-
-          const aiData = await aiResponse.json();
-          const content = aiData.choices?.[0]?.message?.content;
+            `Search for recent cybersecurity threats, vulnerabilities, CVEs, and security advisories related to: ${tool}. Focus on threats from the last 7 days. If none, set hasThreats to false.`
+          );
           if (!content) continue;
 
           let result;
@@ -404,35 +379,16 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
       for (const alert of alerts) {
         try {
           console.log(`🤖 Auto-analyzing alert ${alert.id}...`);
-          const analysisResponse = await fetch(aiUrl, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${aiApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: aiModel,
-              messages: [
-                {
-                  role: "system",
-                  content: `You are a senior cybersecurity analyst. Return ONLY valid JSON (no markdown, no backticks):
+          const analysisContent = await callAI(
+            aiConfig,
+            `You are a senior cybersecurity analyst. Return ONLY valid JSON (no markdown, no backticks):
 {
   "analysis": "Detailed analysis of the threat (3-5 paragraphs)",
   "remediation": "Step-by-step remediation as numbered steps"
 }`,
-                },
-                {
-                  role: "user",
-                  content: `Analyze this cybersecurity alert:\n\nTool: ${alert.tool_name}\nSeverity: ${alert.severity}\nSummary: ${alert.summary}\nSource: ${alert.source_url || "N/A"}\nUser's Stack: ${config.tools_list.join(", ")}`,
-                },
-              ],
-            }),
-          });
-
-          if (analysisResponse.ok) {
-            const analysisData = await analysisResponse.json();
-            const analysisContent = analysisData.choices?.[0]?.message?.content;
-            if (analysisContent) {
+            `Analyze this cybersecurity alert:\n\nTool: ${alert.tool_name}\nSeverity: ${alert.severity}\nSummary: ${alert.summary}\nSource: ${alert.source_url || "N/A"}\nUser's Stack: ${config.tools_list.join(", ")}`
+          );
+          if (analysisContent) {
               try {
                 const clean = analysisContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
                 const parsed = JSON.parse(clean);
@@ -445,7 +401,6 @@ If no recent threats found, return: {"hasThreats": false, "threats": []}`,
                 console.log(`✅ Auto-analysis complete for alert ${alert.id}`);
               } catch { console.error(`Failed to parse analysis for alert ${alert.id}`); }
             }
-          }
         } catch (e) {
           console.error(`Auto-analysis error for ${alert.id}:`, e);
         }
