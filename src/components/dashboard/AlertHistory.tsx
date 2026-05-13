@@ -289,9 +289,9 @@ export const AlertHistory = () => {
             <CardDescription className="text-xs mt-0.5">Click an alert to view full details and AI analysis</CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            {alerts.length > 0 && (
+            {totalCount > 0 && (
               <span className="text-xs text-muted-foreground tabular-nums">
-                {hasFilters ? `${filtered.length} of ${alerts.length}` : alerts.length}
+                {totalCount} total
               </span>
             )}
             <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} className={`text-xs ${showFilters ? "border-primary" : ""}`}>
@@ -301,64 +301,121 @@ export const AlertHistory = () => {
         </div>
 
         {showFilters && (
-          <div className="mt-3 flex flex-col sm:flex-row gap-2">
-            <div className="flex-1 relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 text-xs h-8" />
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex-1 relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 text-xs h-8" />
+              </div>
+              <Select value={sevFilter} onValueChange={setSevFilter}>
+                <SelectTrigger className="w-full sm:w-32 text-xs h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All severity</SelectItem>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={toolFilter} onValueChange={setToolFilter}>
+                <SelectTrigger className="w-full sm:w-36 text-xs h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All tools</SelectItem>
+                  {toolOptions.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={sevFilter} onValueChange={setSevFilter}>
-              <SelectTrigger className="w-full sm:w-32 text-xs h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All severity</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={toolFilter} onValueChange={setToolFilter}>
-              <SelectTrigger className="w-full sm:w-36 text-xs h-8"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All tools</SelectItem>
-                {tools.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {hasFilters && <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => { setSearch(""); setSevFilter("all"); setToolFilter("all"); }}><X className="w-3 h-3 mr-1" /> Clear</Button>}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Select value={dateRange} onValueChange={(v: any) => setDateRange(v)}>
+                <SelectTrigger className="w-full sm:w-36 text-xs h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All time</SelectItem>
+                  <SelectItem value="24h">Last 24 hours</SelectItem>
+                  <SelectItem value="7d">Last 7 days</SelectItem>
+                  <SelectItem value="30d">Last 30 days</SelectItem>
+                  <SelectItem value="custom">Custom range</SelectItem>
+                </SelectContent>
+              </Select>
+              {dateRange === "custom" && (
+                <>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={cn("text-xs h-8 justify-start", !fromDate && "text-muted-foreground")}>
+                        <CalendarIcon className="w-3 h-3 mr-1.5" />
+                        {fromDate ? format(fromDate, "MMM d, yyyy") : "From"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={fromDate} onSelect={setFromDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={cn("text-xs h-8 justify-start", !toDate && "text-muted-foreground")}>
+                        <CalendarIcon className="w-3 h-3 mr-1.5" />
+                        {toDate ? format(toDate, "MMM d, yyyy") : "To"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={toDate} onSelect={setToDate} initialFocus className={cn("p-3 pointer-events-auto")} />
+                    </PopoverContent>
+                  </Popover>
+                </>
+              )}
+              {hasFilters && <Button variant="ghost" size="sm" className="text-xs h-8" onClick={clearFilters}><X className="w-3 h-3 mr-1" /> Clear</Button>}
+            </div>
           </div>
         )}
       </CardHeader>
       <CardContent>
-        {filtered.length === 0 ? (
+        {alerts.length === 0 ? (
           <div className="text-center py-12">
             <Shield className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
             <p className="text-sm font-medium text-foreground">{hasFilters ? "No matching alerts" : "No alerts yet"}</p>
             <p className="text-xs text-muted-foreground mt-1">{hasFilters ? "Adjust your filters" : "Run a scan to detect threats"}</p>
           </div>
         ) : (
-          <ScrollArea className="h-[520px]">
-            <div className="space-y-1.5 pr-3">
-              {filtered.map((alert) => (
-                <button
-                  key={alert.id}
-                  onClick={() => setSelectedAlert(alert)}
-                  className={`w-full text-left border rounded-md border-l-2 ${sevBorder(alert.severity)} hover:bg-secondary/40 transition-colors group`}
-                >
-                  <div className="p-3 flex items-center gap-3">
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className={`text-[10px] ${sevColor(alert.severity)}`}>{alert.severity}</Badge>
-                        <span className="text-xs font-medium text-foreground">{alert.tool_name}</span>
-                        {alert.analysis && <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">Analyzed</Badge>}
+          <>
+            <ScrollArea className="h-[520px]">
+              <div className="space-y-1.5 pr-3">
+                {alerts.map((alert) => (
+                  <button
+                    key={alert.id}
+                    onClick={() => setSelectedAlert(alert)}
+                    className={`w-full text-left border rounded-md border-l-2 ${sevBorder(alert.severity)} hover:bg-secondary/40 transition-colors group`}
+                  >
+                    <div className="p-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className={`text-[10px] ${sevColor(alert.severity)}`}>{alert.severity}</Badge>
+                          <span className="text-xs font-medium text-foreground">{alert.tool_name}</span>
+                          {alert.analysis && <Badge variant="outline" className="text-[10px] border-primary/20 text-primary">Analyzed</Badge>}
+                        </div>
+                        <p className="text-sm text-foreground/80 leading-relaxed truncate">{alert.summary}</p>
+                        <p className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(alert.detected_at), { addSuffix: true })}</p>
                       </div>
-                      <p className="text-sm text-foreground/80 leading-relaxed truncate">{alert.summary}</p>
-                      <p className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(alert.detected_at), { addSuffix: true })}</p>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 transition-colors" />
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 transition-colors" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          </ScrollArea>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Page {page + 1} of {totalPages} · {totalCount} alerts
+                </span>
+                <div className="flex gap-1">
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>
+                    <ChevronLeft className="w-3 h-3 mr-1" /> Previous
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>
+                    Next <ChevronRight className="w-3 h-3 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
