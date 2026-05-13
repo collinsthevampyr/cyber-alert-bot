@@ -676,6 +676,97 @@ serve(async (req) => {
 
     const failedResults = results.filter((item) => !item.ok);
 
+    // ---- Auto-analyze SIEM-ingested alerts and send notifications ----
+    for (const [userId, newAlerts] of insertedAlertsByUser.entries()) {
+      try {
+        const { data: cfg } = await supabase
+          .from("monitoring_config")
+          .select("tools_list, custom_ai_config, slack_webhook_url")
+          .eq("user_id", userId)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const aiConfig = getAIConfig(cfg?.custom_ai_config);
+        if (aiConfig) {
+          for (const alert of newAlerts) {
+            try {
+              const rawStr = alert.raw_event ? JSON.stringify(alert.raw_event).slice(0, 4000) : "";
+              const metaStr = alert.event_metadata ? JSON.stringify(alert.event_metadata).slice(0, 1500) : "";
+              const content = await callAI(
+                aiConfig,
+                `You are a senior cybersecurity analyst. Return ONLY valid JSON (no markdown, no backticks):\n{\n  "analysis": "Detailed analysis of the threat (3-5 paragraphs)",\n  "remediation": "Step-by-step remediation as numbered steps"\n}`,
+                `Analyze this SIEM alert:\n\nTool: ${alert.tool_name}\nSeverity: ${alert.severity}\nSummary: ${alert.summary}\nSource: ${alert.source_url || "N/A"}\nUser's Stack: ${cfg?.tools_list?.join(", ") || "Unknown"}\n${metaStr ? `\nEvent Metadata:\n${metaStr}\n` : ""}${rawStr ? `\nRaw SIEM Event (truncated):\n${rawStr}\n` : ""}`
+              );
+              if (content) {
+                try {
+                  const clean = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+                  const parsed = JSON.parse(clean);
+                  await supabase.from("alerts").update({
+                    analysis: parsed.analysis,
+                    remediation: parsed.remediation,
+                  }).eq("id", alert.id);
+                  alert.analysis = parsed.analysis;
+                  alert.remediation = parsed.remediation;
+                } catch (e) { console.error(`Parse fail for ${alert.id}`, e); }
+              }
+            } catch (e) { console.error(`Auto-analysis error ${alert.id}:`, e); }
+          }
+        } else {
+          console.log(`User ${userId}: no AI key configured — skipping auto-analysis`);
+        }
+
+        // Send notifications
+        const { data: channels } = await supabase
+          .from("notification_channels")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("is_active", true);
+
+        if (channels?.length) {
+          for (const alert of newAlerts) {
+            for (const ch of channels) {
+              try {
+                const cc = ch.config as any;
+                const analysisBlock = alert.analysis ? `\n\n📊 *AI Agent Analysis:*\n${alert.analysis}` : "";
+                const remediationBlock = alert.remediation ? `\n\n🛡️ *Remediation:*\n${alert.remediation}` : "";
+                if (ch.channel_type === "slack" && cc.webhook_url && isSafeWebhookUrl(cc.webhook_url)) {
+                  await fetch(cc.webhook_url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: `🤖 *AI Agent Analysis*\n\n*Tool:* ${alert.tool_name}\n*Severity:* ${alert.severity}\n*Summary:* ${alert.summary}${analysisBlock}${remediationBlock}` }),
+                  });
+                } else if (ch.channel_type === "discord" && cc.webhook_url && isSafeWebhookUrl(cc.webhook_url)) {
+                  const fields = [
+                    { name: "Tool", value: alert.tool_name, inline: true },
+                    { name: "Severity", value: alert.severity, inline: true },
+                    { name: "Summary", value: alert.summary },
+                  ];
+                  if (alert.analysis) fields.push({ name: "📊 AI Analysis", value: alert.analysis.substring(0, 1024), inline: false });
+                  if (alert.remediation) fields.push({ name: "🛡️ Remediation", value: alert.remediation.substring(0, 1024), inline: false });
+                  await fetch(cc.webhook_url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      embeds: [{
+                        title: "🤖 AI Agent Analysis",
+                        color: ({ Critical: 0xff0000, High: 0xff6600, Medium: 0xffcc00, Low: 0x00cc00 } as any)[alert.severity] || 0x808080,
+                        fields,
+                        timestamp: new Date().toISOString(),
+                        footer: { text: "Gardien AI Agent" },
+                      }],
+                    }),
+                  });
+                }
+              } catch (chErr) { console.error("Notification error:", chErr); }
+            }
+          }
+        }
+      } catch (postErr) {
+        console.error(`Post-ingest processing error for user ${userId}:`, postErr);
+      }
+    }
+
     return respond({
       ok: failedResults.length === 0,
       ingested: totalIngested,
