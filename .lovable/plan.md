@@ -1,76 +1,41 @@
-## Goals
+## LinkedIn Post Draft: Gardien
 
-Three issues to fix:
+This draft is written for a **security peer audience**, blending **personal journey + technical founder** tone. It is **medium length** and emphasizes the two struggles you selected: the **Wazuh integration pain** and the **migration to self-hosted Vercel + Supabase**. It closes with a **reflective takeaway**.
 
-1. SIEM-ingested alerts are not auto-analyzed by AI (only manual "Analyze" works).
-2. SIEM events only carry a short title — analysis lacks the raw context (rule, host, source IP, full log, etc.).
-3. Dashboard shows a fixed 50 alerts with no pagination and no date filter.
+----
 
----
+Over the last few weeks I went from a rough idea to a working product: **Gardien** — an AI-augmented Tier 1 SOC analyst that ingests SIEM events, enriches them with threat intel, analyzes them with a language model, and routes alerts to Slack, Discord, email, or webhooks.
 
-## 1. Capture richer SIEM event context
+If you have ever worked in a SOC, you know the daily grind: alerts pile up across a dozen tools, most are noise, and the ones that matter often get buried. I wanted to see if I could automate the boring parts without losing the judgment that makes an analyst useful.
 
-**Database**
+The build process turned out to be more educational than I expected.
 
-Add two nullable columns to `alerts` so SIEM data is preserved without losing existing rows:
+**What worked early**
 
-- `raw_event jsonb` — full normalized event payload (rule id, level, host, agent, source IP, full_log, etc.)
-- `event_metadata jsonb` — small key/value of indexed-friendly fields (host, rule_id, agent_name, src_ip)
+The core loop came together fast: scan for threats, create alerts, run an LLM analysis, then push the result to the right channel. Multiprovider AI support (OpenAI, DeepSeek, Anthropic, Google, Groq, Mistral, OpenRouter, custom endpoints) made it flexible for different teams and budgets.
 
-**`supabase/functions/siem-ingest/index.ts`**
+**What fought back**
 
-For each SIEM type (Wazuh indexer/manager, Splunk, Elastic, Sentinel, QRadar, Chronicle, custom), build a normalized object with:
-- `summary` (rule description)
-- `severity`
-- `raw_event` — entire `_source` / row / hit
-- `event_metadata` — extracted host, rule.id, rule.level, agent.name, data.srcip, decoder.name, etc.
+Two things ate most of my time:
 
-Insert these into `alerts` alongside existing fields.
+1. **Wazuh integration.** Wazuh is a great SIEM, but its API and indexer are not friendly to a plug-and-play integration. I had to handle Basic auth with Base64-encoded credentials, navigate the difference between the Wazuh manager and the Wazuh indexer, and deal with self-signed certificates that the edge runtime refused to trust. I eventually added a "trust self-signed cert" option and a CA-certificate paste path so users could connect without putting Wazuh behind a reverse proxy first.
 
-## 2. Auto-analyze SIEM alerts
+2. **Migration off the managed platform.** Gardien started inside Lovable, which was perfect for rapid prototyping. To own the stack, I moved the frontend to Vercel and the backend to my own Supabase project. That meant recreating cron jobs, re-deploying edge functions, migrating secrets, and reconfiguring auth providers. It was a reminder that "it works on the prototype" and "it works in production" are very different statements.
 
-**`supabase/functions/siem-ingest/index.ts`**
+**What I learned**
 
-After successful insert into `alerts`, collect the new alert IDs per user. At the end of the run, for each user that has `custom_ai_config.api_key` configured:
+The real value of a tool like Gardien is not replacing analysts. It is buying them back the time they currently spend on alert triage, log context hunting, and copy-paste between tabs. If the AI can summarize a SIEM event, extract host, rule, source IP, and full log context, and suggest a remediation path, the human can focus on decisions that matter.
 
-- Load their AI config (reuse the multi-provider `getAIConfig` + `callAI` helpers — extract them from `scan-threats` into shared inline functions in this file).
-- For each new alert, call the AI with a richer prompt that includes:
-  - `tool_name`, `severity`, `summary`
-  - `raw_event` (truncated to ~4 KB)
-  - `event_metadata`
-  - User's stack (`monitoring_config.tools_list`)
-- Update the alert with `analysis` and `remediation`.
-- Then trigger the existing notification fan-out (Slack/Discord/Email channels + legacy webhook + `webhooks` table) the same way `cron-scan` and `scan-threats` already do.
+Right now Gardien handles Wazuh, Splunk, Elastic, Sentinel, QRadar, Chronicle, and custom SIEM sources. It runs scheduled scans, auto-analyzes alerts, and sends rich notifications with context included. There is still a lot to improve, but the hardest part is behind me: the thing actually works in production, on my own infrastructure.
 
-**`supabase/functions/cron-scan/index.ts`**
+Shipping is a skill. Migrating, debugging TLS, and reading edge-function logs at midnight taught me more than any tutorial could.
 
-Replace the hard-coded OpenAI block with the same `getAIConfig` + `callAI` helpers so cron-driven scans honor the user's chosen provider (OpenAI / DeepSeek / Anthropic / Google / Groq / Mistral / OpenRouter / Custom). Today cron-scan only works for OpenAI keys, which is why "automatic" analysis silently does nothing for users on other providers.
+----
 
-**`supabase/functions/analyze-alert/index.ts`**
+## Hashtags (optional)
 
-When analyzing, also include `raw_event` and `event_metadata` (if present) in the prompt so manual re-analysis benefits from the richer SIEM context too.
+#SOC #ThreatIntelligence #SecurityOperations #Wazuh #SIEM #AI #Cybersecurity #Supabase #Vercel #FullStack #DevSecOps
 
-## 3. Dashboard alert pagination + date filter
-
-**`src/components/dashboard/AlertHistory.tsx`**
-
-- Replace the single `loadAlerts` (limit 50) with paginated fetch:
-  - 50 per page using Supabase `.range(from, to)` and `{ count: "exact" }`.
-  - Page state + total count.
-  - Pagination controls (`Previous` / `Next` / page indicator) using existing `Pagination` UI primitives.
-- Add date filter to the Filter bar:
-  - From / To date pickers (shadcn `Calendar` in `Popover`, with `pointer-events-auto`).
-  - "Last 24h / 7d / 30d / Custom / All" quick-select.
-  - Date range applied as `.gte("detected_at", from)` and `.lte("detected_at", to)` server-side so pagination stays accurate.
-- Search / severity / tool filters move to the server query as well so they paginate correctly.
-- Realtime channel: on insert, refresh page 1 only (avoid disturbing user's current page).
-
----
-
-## Technical notes
-
-- Migration is additive (`ADD COLUMN ... jsonb NULL`) — no data loss, existing alerts get NULL for new fields.
-- All edge function changes must keep the existing `verify_jwt` setup and CORS headers untouched.
-- `raw_event` is truncated before sending to AI to stay under provider context limits; the full JSON stays in the DB.
-- `notification_channels` email path stays as a no-op log unless Resend/SMTP is configured (out of scope here).
-- Edge functions to redeploy after changes: `siem-ingest`, `cron-scan`, `analyze-alert`.
+## Notes
+- If you want a shorter version, I can cut this down to 3-4 paragraphs while keeping the same narrative arc.
+- If you want to emphasize a different angle (e.g., the AI provider flexibility, the open-source stack, or the user feedback loop), I can adjust the focus.
