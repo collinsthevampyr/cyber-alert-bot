@@ -1,0 +1,30 @@
+Over the last few weeks I went from a rough idea to a working product: Gardien — an AI-augmented Tier 1 SOC analyst that ingests SIEM events, enriches them with threat intel, analyzes them with a language model, and routes alerts to Slack, Discord, email, or webhooks.
+
+If you have ever worked in a SOC, you know the daily grind: alerts pile up across a dozen tools, most are noise, and the ones that matter often get buried. I wanted to see if I could automate the boring parts without losing the judgment that makes an analyst useful.
+
+The build process turned out to be more educational than I expected.
+
+What worked early
+
+The core loop came together fast: scan for threats, create alerts, run an LLM analysis, then push the result to the right channel. Multiprovider AI support (OpenAI, DeepSeek, Anthropic, Google, Groq, Mistral, OpenRouter, custom endpoints) made it flexible for different teams and budgets.
+
+What fought back
+
+Two things ate most of my time:
+
+1. Wazuh integration. Wazuh is a great SIEM, but its API and indexer are not friendly to a plug-and-play integration. I had to handle Basic auth with Base64-encoded credentials, navigate the difference between the Wazuh manager and the Wazuh indexer, and deal with self-signed certificates that the edge runtime refused to trust. I eventually added a "trust self-signed cert" option and a CA-certificate paste path so users could connect without putting Wazuh behind a reverse proxy first.
+
+2. Migration off the managed platform. Gardien started inside Lovable, which was perfect for rapid prototyping. To own the stack, I moved the frontend to Vercel and the backend to my own Supabase project. That meant recreating cron jobs, re-deploying edge functions, migrating secrets, and reconfiguring auth providers. It was a reminder that "it works on the prototype" and "it works in production" are very different statements.
+
+What I learned
+
+The real value of a tool like Gardien is not replacing analysts. It is buying them back the time they currently spend on alert triage, log context hunting, and copy-paste between tabs. If the AI can summarize a SIEM event, extract host, rule, source IP, and full log context, and suggest a remediation path, the human can focus on decisions that matter.
+
+Right now Gardien handles Wazuh, Splunk, Elastic, Sentinel, QRadar, Chronicle, and custom SIEM sources. It runs scheduled scans, auto-analyzes alerts, and sends rich notifications with context included. There is still a lot to improve, but the hardest part is behind me: the thing actually works in production, on my own infrastructure.
+
+Shipping is a skill. Migrating, debugging TLS, and reading edge-function logs at midnight taught me more than any tutorial could.
+
+---
+
+Hashtags:
+#SOC #ThreatIntelligence #SecurityOperations #Wazuh #SIEM #AI #Cybersecurity #Supabase #Vercel #FullStack #DevSecOps
